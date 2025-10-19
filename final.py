@@ -1,3 +1,3 @@
-print ("HOla mundo")
+print ("HOla Mundo")
 
-print("Mi nombre es tomas")
+print("Mi nombre es")
