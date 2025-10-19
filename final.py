@@ -68,7 +68,7 @@ def abrir_ventana_principal(nombre, rol):
     if rol == "administrador":
         botones = ["Crear Clientes", "Asistencia", "Buscar Clientes", "Inventario",
                    "Listado Clientes por Visitar", "Órdenes de Trabajo", "Material Instalado",
-                   "Control de Cobros", "Facturar"]
+                   "Control de Cobros", "Facturar","Crear Usuarios"]
     elif rol == "cobrador":
         botones = ["Asistencia", "Buscar Clientes", "Listado Clientes Visitar",
                    "Control de Cobros", "Facturar"]
