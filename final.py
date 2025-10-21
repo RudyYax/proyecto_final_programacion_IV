@@ -118,6 +118,55 @@ def ventana_crear_clientes(parent):
                             command=guardar_cliente, width=18)
     btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
 
+def ventana_buscar_clientes(parent):
+    win = tk.Toplevel(parent)
+    win.title("Buscar Clientes")
+    win.geometry("700x400")
+
+    tk.Label(win, text="Buscar por nombre o código:").pack(pady=5)
+    entrada = tk.Entry(win, width=40)
+    entrada.pack(pady=5)
+
+    lista = tk.Listbox(win, width=90, height=12)
+    lista.pack(pady=10)
+
+    def buscar():
+        busqueda = entrada.get().strip()
+        if busqueda == "":
+            messagebox.showwarning("Buscar", "Escribe algo para buscar.")
+            return
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+
+        if busqueda.isdigit():
+            cur.execute("SELECT id_cliente, nombre, nit, telefono, direccion FROM clientes WHERE id_cliente=? OR nombre LIKE ?", (busqueda, f"%{busqueda}%"))
+        else:
+            cur.execute("SELECT id_cliente, nombre, nit, telefono, direccion FROM clientes WHERE nombre LIKE ?", (f"%{busqueda}%",))
+
+        filas = cur.fetchall()
+        con.close()
+
+        lista.delete(0, tk.END)
+        if not filas:
+            lista.insert(tk.END, "No se encontraron clientes.")
+            return
+
+        for fila in filas:
+            idc, nom, nit, tel, dire = fila
+            texto = f"ID: {idc} | {nom} | NIT: {nit or ''} | Tel: {tel or ''} | Dir: {dire or ''}"
+            lista.insert(tk.END, texto)
+
+    boton_buscar = tk.Button(win, text="Buscar", command=buscar, width=15, bg="#4CAF50", fg="white")
+    boton_buscar.pack(pady=5)
+
+    def limpiar():
+        entrada.delete(0, tk.END)
+        lista.delete(0, tk.END)
+
+    boton_limpiar = tk.Button(win, text="Limpiar", command=limpiar, width=15, bg="orange", fg="white")
+    boton_limpiar.pack(pady=5)
+
 def ventana_ver_asistencias(parent):
     win = tk.Toplevel(parent)
     win.title("Administración - Ver Asistencias")
@@ -240,7 +289,7 @@ def abrir_ventana_principal(nombre, rol):
         botones = [
             ("Crear Clientes", lambda: ventana_crear_clientes(ventana)),
             ("Ver Asistencias", lambda: ventana_ver_asistencias(ventana)),
-            ("Buscar Clientes", None),
+            ("Buscar Clientes", lambda : ventana_buscar_clientes(ventana)),
             ("Inventario", None),
             ("Listado Clientes por Visitar", None),
             ("Órdenes de Trabajo", None),
