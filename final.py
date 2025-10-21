@@ -37,6 +37,34 @@ def crear_tablas():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS proveedores (
+        id_proveedor INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        nit TEXT,
+        telefono TEXT,
+        direccion TEXT
+    )
+    """)#Rudy Yax
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS productos (
+        id_producto INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo TEXT NOT NULL,
+        descripcion TEXT,
+        precio TEXT
+        stock INTEGER DEFAULT 0
+    )
+    """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS compras (
+            id_compra INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_factura TEXT NOT NULL,
+            descripcion TEXT,
+            precio TEXT
+        )
+        """)
     usuarios_default = [
         ("Rudy Yax", "admin", "1234", "administrador"),
         ("Rudy Yax", "cobro1", "1234", "cobrador"),
@@ -117,55 +145,6 @@ def ventana_crear_clientes(parent):
     btn_guardar = tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
                             command=guardar_cliente, width=18)
     btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
-
-def ventana_buscar_clientes(parent):
-    win = tk.Toplevel(parent)
-    win.title("Buscar Clientes")
-    win.geometry("700x400")
-
-    tk.Label(win, text="Buscar por nombre o código:").pack(pady=5)
-    entrada = tk.Entry(win, width=40)
-    entrada.pack(pady=5)
-
-    lista = tk.Listbox(win, width=90, height=12)
-    lista.pack(pady=10)
-
-    def buscar():
-        busqueda = entrada.get().strip()
-        if busqueda == "":
-            messagebox.showwarning("Buscar", "Escribe algo para buscar.")
-            return
-
-        con = sqlite3.connect("empresa.db")
-        cur = con.cursor()
-
-        if busqueda.isdigit():
-            cur.execute("SELECT id_cliente, nombre, nit, telefono, direccion FROM clientes WHERE id_cliente=? OR nombre LIKE ?", (busqueda, f"%{busqueda}%"))
-        else:
-            cur.execute("SELECT id_cliente, nombre, nit, telefono, direccion FROM clientes WHERE nombre LIKE ?", (f"%{busqueda}%",))
-
-        filas = cur.fetchall()
-        con.close()
-
-        lista.delete(0, tk.END)
-        if not filas:
-            lista.insert(tk.END, "No se encontraron clientes.")
-            return
-
-        for fila in filas:
-            idc, nom, nit, tel, dire = fila
-            texto = f"ID: {idc} | {nom} | NIT: {nit or ''} | Tel: {tel or ''} | Dir: {dire or ''}"
-            lista.insert(tk.END, texto)
-
-    boton_buscar = tk.Button(win, text="Buscar", command=buscar, width=15, bg="#4CAF50", fg="white")
-    boton_buscar.pack(pady=5)
-
-    def limpiar():
-        entrada.delete(0, tk.END)
-        lista.delete(0, tk.END)
-
-    boton_limpiar = tk.Button(win, text="Limpiar", command=limpiar, width=15, bg="orange", fg="white")
-    boton_limpiar.pack(pady=5)
 
 def ventana_ver_asistencias(parent):
     win = tk.Toplevel(parent)
@@ -259,6 +238,213 @@ def ventana_marcar_asistencia(parent):
     tk.Button(win, text="Marcar ENTRADA", width=18, command=lambda: marcar('entrada')).grid(row=2, column=0, padx=6, pady=10)
     tk.Button(win, text="Marcar SALIDA",  width=18, command=lambda: marcar('salida')).grid(row=2, column=1, padx=6, pady=10)
 
+def ventana_inventario(parent):
+    win = tk.Toplevel(parent)
+    win.title("Inventario")
+    win.geometry("480x260")
+
+    tk.Label(win, text="Inventario", font=("Arial", 14, "bold")).pack(pady=10)
+
+    tk.Button(win, text="Proveedor", font=("Arial", 12), width=22, command=lambda: ventana_proveedores(win)).pack(pady=8)
+    tk.Button(win, text="Productos", font=("Arial", 12), width=22, command=lambda: ventana_productos(win)).pack(pady=8)
+    tk.Button(win, text="Entradas/Salidas (próximamente)", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
+
+def ventana_proveedores(parent):
+    win = tk.Toplevel(parent)
+    win.title("Inventario - Proveedores")
+    win.geometry("420x220")
+
+    tk.Label(win, text="Proveedores", font=("Arial", 14, "bold")).pack(pady=10)
+
+    tk.Button(win, text="Agregar Proveedor", font=("Arial", 12), width=22,
+              command=lambda: ventana_crear_proveedor(win)).pack(pady=6)
+
+    tk.Button(win, text="Mostrar Proveedores", font=("Arial", 12), width=22,
+              command=lambda: ventana_listar_proveedores(win)).pack(pady=6)
+def ventana_listar_proveedores(parent):
+    win = tk.Toplevel(parent)
+    win.title("Listado de Proveedores")
+    win.geometry("750x420")
+
+    tk.Label(win, text="Proveedores registrados", font=("Arial", 12, "bold")).grid(row=0, column=0, padx=8, pady=8, sticky="w")
+
+    lst = tk.Listbox(win, width=100, height=18)
+    lst.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
+
+    scr = tk.Scrollbar(win, orient="vertical", command=lst.yview)
+    scr.grid(row=1, column=1, sticky="ns", pady=8)
+    lst.config(yscrollcommand=scr.set)
+
+    lbl_total = tk.Label(win, text="0 resultados")
+    lbl_total.grid(row=2, column=0, padx=8, pady=4, sticky="w")
+
+    win.grid_rowconfigure(1, weight=1)
+    win.grid_columnconfigure(0, weight=1)
+
+    def cargar():
+        lst.delete(0, tk.END)
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("SELECT id_proveedor, nombre, IFNULL(nit,''), IFNULL(telefono,''), IFNULL(direccion,'') "
+                    "FROM proveedores ORDER BY id_proveedor DESC")
+        filas = cur.fetchall()
+        con.close()
+
+        for (pid, nom, nit, tel, dirx) in filas:
+            lst.insert(tk.END, f"{pid:04d} | {nom} | NIT:{nit} | Tel:{tel} | Dir:{dirx}")
+
+        lbl_total.config(text=f"{len(filas)} resultados")
+
+    tk.Button(win, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
+    cargar()
+
+def ventana_crear_proveedor(parent):
+    win =tk.Toplevel(parent)
+    win.title("Crear Proveedor")
+    win.geometry("540x300")
+
+    tk.Label(win, text="Nombre:", font=("Arial", 12)).grid(row=0, column=0, padx=8, pady=6, sticky="e")
+    e_nombre = tk.Entry(win, font=("Arial", 12), width=30)
+    e_nombre.grid(row=0, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="NIT:", font=("Arial", 12)).grid(row=1, column=0, padx=8, pady=6, sticky="e")
+    e_nit = tk.Entry(win, font=("Arial", 12), width=30)
+    e_nit.grid(row=1, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Teléfono:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=6, sticky="e")
+    e_tel = tk.Entry(win, font=("Arial", 12), width=30)
+    e_tel.grid(row=2, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Dirección:", font=("Arial", 12)).grid(row=3, column=0, padx=8, pady=6, sticky="e")
+    e_dir = tk.Entry(win, font=("Arial", 12), width=30)
+    e_dir.grid(row=3, column=1, padx=8, pady=6, sticky="w")
+
+    def guardar_proveedor():
+        nom = e_nombre.get().strip()
+        nit = e_nit.get().strip()
+        tel = e_tel.get().strip()
+        dire = e_dir.get().strip()
+
+        if nom == "":
+            messagebox.showwarning("Validación", "El nombre es obligatorio")
+            return
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("INSERT INTO proveedores (nombre, nit, telefono, direccion) VALUES (?,?,?,?)",
+                    (nom, nit if nit else None, tel if tel else None, dire if dire else None))
+        con.commit()
+        con.close()
+
+        messagebox.showinfo("Proveedores", "Proveedor creado correctamente")
+
+        e_nombre.delete(0, tk.END)
+        e_nit.delete(0, tk.END)
+        e_tel.delete(0, tk.END)
+        e_dir.delete(0, tk.END)
+
+    btn_guardar = tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
+                            command=guardar_proveedor, width=18)
+    btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
+
+def ventana_productos(parent):
+    win = tk.Toplevel(parent)
+    win.title("Inventario - Productos")
+    win.geometry("420x220")
+
+    tk.Label(win, text="Productos", font=("Arial", 14, "bold")).pack(pady=10)
+
+    tk.Button(win, text="Agregar Producto", font=("Arial", 12), width=22,
+              command=lambda: ventana_crear_productos(win)).pack(pady=6)
+
+    tk.Button(win, text="Mostrar Productos", font=("Arial", 12), width=22,
+              command=lambda: ventana_listar_productos(win)).pack(pady=6)
+
+def ventana_listar_productos(parent):
+    win = tk.Toplevel(parent)
+    win.title("Listado de Productos")
+    win.geometry("750x420")
+
+    tk.Label(win, text="Productos registrados", font=("Arial", 12, "bold")).grid(row=0, column=0, padx=8, pady=8, sticky="w")
+
+    lst = tk.Listbox(win, width=100, height=18)
+    lst.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
+
+    scr = tk.Scrollbar(win, orient="vertical", command=lst.yview)
+    scr.grid(row=1, column=1, sticky="ns", pady=8)
+    lst.config(yscrollcommand=scr.set)
+
+    lbl_total = tk.Label(win, text="0 resultados")
+    lbl_total.grid(row=2, column=0, padx=8, pady=4, sticky="w")
+
+    win.grid_rowconfigure(1, weight=1)
+    win.grid_columnconfigure(0, weight=1)
+
+    def cargar():
+        lst.delete(0, tk.END)
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("SELECT id_producto, IFNULL(codigo,''), IFNULL(descripcion,''), IFNULL(precio,'') "
+                    "FROM productos ORDER BY id_producto DESC")
+        filas = cur.fetchall()
+        con.close()
+
+        for (pid, cod, des, pre) in filas:
+            lst.insert(tk.END, f"{pid:04d} | COD:{cod} | {des} | Precio:{pre}")
+
+        lbl_total.config(text=f"{len(filas)} resultados")
+
+    tk.Button(win, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
+    cargar()
+def ventana_crear_productos(parent):
+    win =tk.Toplevel(parent)
+    win.title("Crear Producto")
+    win.geometry("540x300")
+
+    tk.Label(win, text="Codigo:", font=("Arial", 12)).grid(row=0, column=0, padx=8, pady=6, sticky="e")
+    e_Codigo = tk.Entry(win, font=("Arial", 12), width=30)
+    e_Codigo.grid(row=0, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Descripcion:", font=("Arial", 12)).grid(row=1, column=0, padx=8, pady=6, sticky="e")
+    e_Descripcion = tk.Entry(win, font=("Arial", 12), width=30)
+    e_Descripcion.grid(row=1, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Precio:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=6, sticky="e")
+    e_Precio = tk.Entry(win, font=("Arial", 12), width=30)
+    e_Precio.grid(row=2, column=1, padx=8, pady=6, sticky="w")
+
+
+    def guardar_producto():
+        cod = e_Codigo.get().strip()
+        des = e_Descripcion.get().strip()
+        prec = e_Precio.get().strip()
+
+        if cod == "":
+            messagebox.showwarning("Validación", "El Código es obligatorio")
+            return
+        if des == "":
+            messagebox.showwarning("Validación", "La Descripcion es obligatorio")
+            return
+        if prec == "":
+            messagebox.showwarning("Validación", "El Precio es obligatorio")
+            return
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("INSERT INTO productos(codigo, descripcion, precio) VALUES (?,?,?)",
+                    (cod, des if des else None, prec if prec else None))
+        con.commit()
+        con.close()
+
+        messagebox.showinfo("Producto", "Producto creado correctamente")
+
+        e_Codigo.delete(0, tk.END)
+        e_Descripcion.delete(0, tk.END)
+        e_Precio.delete(0, tk.END)
+
+    btn_guardar = tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
+                            command=guardar_producto, width=18)
+    btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
 def abrir_ventana_principal(nombre, rol):
     ventana = tk.Tk()
     ventana.title("Panel - " + rol.capitalize())
@@ -289,8 +475,8 @@ def abrir_ventana_principal(nombre, rol):
         botones = [
             ("Crear Clientes", lambda: ventana_crear_clientes(ventana)),
             ("Ver Asistencias", lambda: ventana_ver_asistencias(ventana)),
-            ("Buscar Clientes", lambda : ventana_buscar_clientes(ventana)),
-            ("Inventario", None),
+            ("Buscar Clientes", None),
+            ("Inventario", lambda: ventana_inventario(ventana)),
             ("Listado Clientes por Visitar", None),
             ("Órdenes de Trabajo", None),
             ("Material Instalado", None),
@@ -326,7 +512,7 @@ def abrir_ventana_principal(nombre, rol):
         y += 50
 
     b_salir = tk.Button(ventana, text="Cerrar Sesión", command=ventana.destroy, bg="red", fg="white", font=("Arial", 14), width=25)
-    canvas.create_window(ancho//2, y + 50, window=b_salir)
+    canvas.create_window(ancho//2, y + 20, window=b_salir)
 
     ventana.fondo_tk = fondo_tk
     ventana.mainloop()
