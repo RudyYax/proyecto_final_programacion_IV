@@ -38,14 +38,23 @@ def crear_tablas():
     """)
 
     cur.execute("""
-    CREATE TABLe IF NOT EXISTS proveedores (
-        id_proveedor INTEFER PRIMARY KEY AUTOINCREMENT,
+    CREATE TABLE IF NOT EXISTS proveedores (
+        id_proveedor INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
         nit TEXT,
         telefono TEXT,
-        direccion TEXT,
+        direccion TEXT
     )
-    """)  #Rudy Yax
+    """)#Rudy Yax
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS productos (
+        id_producto INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo TEXT NOT NULL,
+        descripcion TEXT,
+        precio TEXT
+    )
+    """)
 
     usuarios_default = [
         ("Rudy Yax", "admin", "1234", "administrador"),
@@ -229,7 +238,7 @@ def ventana_inventario(parent):
 
     btn_crear_prov = tk.Button(win, text="Crear Proveedor", font=("Arial", 12), width=22, command=lambda: ventana_crear_proveedor(win))
     btn_crear_prov.pack(pady=8)
-    tk.Button(win, text="Productos (próximamente)", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
+    btn_crear_prod = tk.Button(win, text="Crear Productos", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
     tk.Button(win, text="Entradas/Salidas (próximamente)", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
 
 def ventana_crear_proveedor(parent):
@@ -281,6 +290,54 @@ def ventana_crear_proveedor(parent):
                             command=guardar_proveedor, width=18)
     btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
 
+def ventana_crear_productos(parent):
+    win =tk.Toplevel(parent)
+    win.title("Crear Producto")
+    win.geometry("540x300")
+
+    tk.Label(win, text="Codigo:", font=("Arial", 12)).grid(row=0, column=0, padx=8, pady=6, sticky="e")
+    e_Codigo = tk.Entry(win, font=("Arial", 12), width=30)
+    e_Codigo.grid(row=0, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Descripcion:", font=("Arial", 12)).grid(row=1, column=0, padx=8, pady=6, sticky="e")
+    e_Descripcion = tk.Entry(win, font=("Arial", 12), width=30)
+    e_Descripcion.grid(row=1, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Precio:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=6, sticky="e")
+    e_Precio = tk.Entry(win, font=("Arial", 12), width=30)
+    e_Precio.grid(row=2, column=1, padx=8, pady=6, sticky="w")
+
+    def guardar_producto():
+        cod = e_Codigo.get().strip()
+        des = e_Descripcion.get().strip()
+        prec = e_Precio.get().strip()
+
+        if cod == "":
+            messagebox.showwarning("Validación", "El Codigo es obligatorio")
+            return
+        if des == "":
+            messagebox.showwarning("Validación", "La Descripcion es obligatorio")
+            return
+        if prec == "":
+            messagebox.showwarning("Validación", "El Precio es obligatorio")
+            return
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("INSERT INTO productos(codigo, descripcion, precio) VALUES (?,?,?,?)",
+                    (cod, des if des else None, prec if prec else None))
+        con.commit()
+        con.close()
+
+        messagebox.showinfo("Producto", "Producto creado correctamente")
+
+        e_Codigo.delete(0, tk.END)
+        e_Descripcion.delete(0, tk.END)
+        e_Precio.delete(0, tk.END)
+
+    btn_guardar = tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
+                            command=guardar_producto(), width=18)
+    btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
 def abrir_ventana_principal(nombre, rol):
     ventana = tk.Tk()
     ventana.title("Panel - " + rol.capitalize())
