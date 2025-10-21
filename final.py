@@ -293,7 +293,7 @@ def ventana_marcar_asistencia(parent):
 def ventana_inventario(parent):
     win = tk.Toplevel(parent)
     win.title("Inventario")
-    win.geometry("480x480")
+    win.geometry("400x400")
 
     tk.Label(win, text="Inventario", font=("Arial", 14, "bold")).pack(pady=10)
 
@@ -301,7 +301,8 @@ def ventana_inventario(parent):
     tk.Button(win, text="Productos", font=("Arial", 12), width=22, command=lambda: ventana_productos(win)).pack(pady=8)
     tk.Button(win, text="Ingresar Compras", font=("Arial", 12), width=22, command=lambda: ventana_registrar_compra(win)).pack(pady=8)
     tk.Button(win, text="Ver Compras Realizadas", font=("Arial", 12), width=22,command=lambda: ventana_ver_compras(win)).pack(pady=6)
-    tk.Button(win, text="Entradas/Salidas (próximamente)", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
+    tk.Button(win, text="Inventario general", font=("Arial", 12), width=22,command=lambda: ventana_ver_inventario(win)).pack(pady=6)
+
 
 def ventana_proveedores(parent):
     win = tk.Toplevel(parent)
@@ -677,6 +678,55 @@ def ventana_ver_compras(parent):
     tk.Button(win, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
     cargar()
 
+def ventana_ver_inventario(parent):
+    win = tk.Toplevel(parent)
+    win.title("Inventario - Costo por Unidad")
+    win.geometry("800x420")
+
+    tk.Label(win, text="Inventario (stock y costo unitario promedio)",
+             font=("Arial", 13, "bold")).grid(row=0, column=0, padx=8, pady=8, sticky="w")
+
+    lst = tk.Listbox(win, width=110, height=18)
+    lst.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
+
+    scr = tk.Scrollbar(win, orient="vertical", command=lst.yview)
+    scr.grid(row=1, column=1, sticky="ns", pady=8)
+    lst.config(yscrollcommand=scr.set)
+
+    lbl_total = tk.Label(win, text="0 productos")
+    lbl_total.grid(row=2, column=0, padx=8, pady=4, sticky="w")
+
+    win.grid_rowconfigure(1, weight=1)
+    win.grid_columnconfigure(0, weight=1)
+
+    def cargar():
+        lst.delete(0, tk.END)
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("""
+            SELECT
+                pr.codigo,
+                COALESCE(pr.stock, 0) AS stock,
+                CASE
+                    WHEN SUM(c.cantidad) IS NOT NULL AND SUM(c.cantidad) > 0
+                    THEN ROUND(1.0 * SUM(c.precio_total) / SUM(c.cantidad), 2)
+                    ELSE NULL
+                END AS costo_unitario
+            FROM productos pr
+            LEFT JOIN compras c ON c.producto_id = pr.id_producto
+            GROUP BY pr.id_producto, pr.codigo, pr.stock
+            ORDER BY pr.codigo
+        """)
+        filas = cur.fetchall()
+        con.close()
+        for (codigo, stock, costo_unit) in filas:
+            costo_txt = f"Q{costo_unit:.2f}" if costo_unit is not None else "s/d"
+            lst.insert(tk.END, f"COD:{codigo} | Stock:{stock} | Costo/U:{costo_txt}")
+
+        lbl_total.config(text=f"{len(filas)} productos")
+
+    tk.Button(win, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
+    cargar()
 
 def abrir_ventana_principal(nombre, rol):
     ventana = tk.Tk()
