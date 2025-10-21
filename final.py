@@ -238,7 +238,8 @@ def ventana_inventario(parent):
 
     btn_crear_prov = tk.Button(win, text="Crear Proveedor", font=("Arial", 12), width=22, command=lambda: ventana_crear_proveedor(win))
     btn_crear_prov.pack(pady=8)
-    btn_crear_prod = tk.Button(win, text="Crear Productos", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
+    btn_crear_prod = tk.Button(win, text="Crear Productos", font=("Arial", 12), width=22, command=lambda: ventana_crear_productos(win))
+    btn_crear_prod.pack(pady=8)
     tk.Button(win, text="Entradas/Salidas (próximamente)", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
 
 def ventana_crear_proveedor(parent):
@@ -313,7 +314,7 @@ def ventana_crear_productos(parent):
         prec = e_Precio.get().strip()
 
         if cod == "":
-            messagebox.showwarning("Validación", "El Codigo es obligatorio")
+            messagebox.showwarning("Validación", "El Código es obligatorio")
             return
         if des == "":
             messagebox.showwarning("Validación", "La Descripcion es obligatorio")
@@ -324,7 +325,7 @@ def ventana_crear_productos(parent):
 
         con = sqlite3.connect("empresa.db")
         cur = con.cursor()
-        cur.execute("INSERT INTO productos(codigo, descripcion, precio) VALUES (?,?,?,?)",
+        cur.execute("INSERT INTO productos(codigo, descripcion, precio) VALUES (?,?,?)",
                     (cod, des if des else None, prec if prec else None))
         con.commit()
         con.close()
@@ -336,7 +337,7 @@ def ventana_crear_productos(parent):
         e_Precio.delete(0, tk.END)
 
     btn_guardar = tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
-                            command=guardar_producto(), width=18)
+                            command=guardar_producto, width=18)
     btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
 def abrir_ventana_principal(nombre, rol):
     ventana = tk.Tk()
