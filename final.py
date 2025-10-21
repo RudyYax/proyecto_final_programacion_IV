@@ -65,26 +65,6 @@ def crear_tablas():
             precio TEXT
         )
         """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS clientes (
-        id_cliente INTEGER PRIMARY KEY AUTOINCREMENT,
-        nombre TEXT NOT NULL,
-        nit TEXT,
-        telefono TEXT,
-        direccion TEXT
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS asistencia (
-        id_asistencia INTEGER PRIMARY KEY AUTOINCREMENT,
-        usuario TEXT,
-        accion TEXT,
-        fecha_hora TEXT
-    )
-    """)
-
     usuarios_default = [
         ("Rudy Yax", "admin", "1234", "administrador"),
         ("Rudy Yax", "cobro1", "1234", "cobrador"),
@@ -117,195 +97,6 @@ def verificar_login():
         abrir_ventana_principal(nom, rol)
     else:
         messagebox.showerror("Error", "Usuario o contraseña incorrectos")
-
-def ventana_crear_clientes(parent):
-    win = tk.Toplevel(parent)
-    win.title("Administración - Agregar Cliente")
-    win.geometry("540x300")
-
-    tk.Label(win, text="Nombre:", font=("Arial", 12)).grid(row=0, column=0, padx=8, pady=6, sticky="e")
-    e_nombre = tk.Entry(win, font=("Arial", 12), width=30)
-    e_nombre.grid(row=0, column=1, padx=8, pady=6, sticky="w")
-
-    tk.Label(win, text="NIT:", font=("Arial", 12)).grid(row=1, column=0, padx=8, pady=6, sticky="e")
-    e_nit = tk.Entry(win, font=("Arial", 12), width=30)
-    e_nit.grid(row=1, column=1, padx=8, pady=6, sticky="w")
-
-    tk.Label(win, text="Teléfono:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=6, sticky="e")
-    e_tel = tk.Entry(win, font=("Arial", 12), width=30)
-    e_tel.grid(row=2, column=1, padx=8, pady=6, sticky="w")
-
-    tk.Label(win, text="Dirección:", font=("Arial", 12)).grid(row=3, column=0, padx=8, pady=6, sticky="e")
-    e_dir = tk.Entry(win, font=("Arial", 12), width=30)
-    e_dir.grid(row=3, column=1, padx=8, pady=6, sticky="w")
-
-    def guardar_cliente():
-        nom = e_nombre.get().strip()
-        nit = e_nit.get().strip()
-        tel = e_tel.get().strip()
-        dire = e_dir.get().strip()
-
-        if nom == "":
-            messagebox.showwarning("Validación", "El nombre es obligatorio")
-            return
-
-        con = sqlite3.connect("empresa.db")
-        cur = con.cursor()
-        cur.execute("INSERT INTO clientes (nombre, nit, telefono, direccion) VALUES (?,?,?,?)",
-                    (nom, nit if nit else None, tel if tel else None, dire if dire else None))
-        con.commit()
-        con.close()
-
-        messagebox.showinfo("Clientes", "Cliente creado correctamente")
-        e_nombre.delete(0, tk.END)
-        e_nit.delete(0, tk.END)
-        e_tel.delete(0, tk.END)
-        e_dir.delete(0, tk.END)
-
-    btn_guardar = tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
-                            command=guardar_cliente, width=18)
-    btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
-
-def ventana_buscar_clientes(parent):
-    win = tk.Toplevel(parent)
-    win.title("Buscar Clientes")
-    win.geometry("700x400")
-
-    tk.Label(win, text="Buscar por nombre o código:").pack(pady=5)
-    entrada = tk.Entry(win, width=40)
-    entrada.pack(pady=5)
-
-    lista = tk.Listbox(win, width=90, height=12)
-    lista.pack(pady=10)
-
-    def buscar():
-        busqueda = entrada.get().strip()
-        if busqueda == "":
-            messagebox.showwarning("Buscar", "Escribe algo para buscar.")
-            return
-
-        con = sqlite3.connect("empresa.db")
-        cur = con.cursor()
-
-        if busqueda.isdigit():
-            cur.execute("SELECT id_cliente, nombre, nit, telefono, direccion FROM clientes WHERE id_cliente=? OR nombre LIKE ?", (busqueda, f"%{busqueda}%"))
-        else:
-            cur.execute("SELECT id_cliente, nombre, nit, telefono, direccion FROM clientes WHERE nombre LIKE ?", (f"%{busqueda}%",))
-
-        filas = cur.fetchall()
-        con.close()
-
-        lista.delete(0, tk.END)
-        if not filas:
-            lista.insert(tk.END, "No se encontraron clientes.")
-            return
-
-        for fila in filas:
-            idc, nom, nit, tel, dire = fila
-            texto = f"ID: {idc} | {nom} | NIT: {nit or ''} | Tel: {tel or ''} | Dir: {dire or ''}"
-            lista.insert(tk.END, texto)
-
-    boton_buscar = tk.Button(win, text="Buscar", command=buscar, width=15, bg="#4CAF50", fg="white")
-    boton_buscar.pack(pady=5)
-
-    def limpiar():
-        entrada.delete(0, tk.END)
-        lista.delete(0, tk.END)
-
-    boton_limpiar = tk.Button(win, text="Limpiar", command=limpiar, width=15, bg="orange", fg="white")
-    boton_limpiar.pack(pady=5)
-
-def ventana_ver_asistencias(parent):
-    win = tk.Toplevel(parent)
-    win.title("Administración - Ver Asistencias")
-    win.geometry("780x520")
-
-    tk.Label(win, text="Usuario:").grid(row=0, column=0, padx=6, pady=6)
-    e_user = tk.Entry(win, width=18)
-    e_user.grid(row=0, column=1)
-
-    tk.Label(win, text="Fecha (YYYY-MM-DD):").grid(row=0, column=2, padx=6, pady=6)
-    e_fecha = tk.Entry(win, width=14)
-    e_fecha.grid(row=0, column=3)
-
-    lst = tk.Listbox(win, width=100, height=20)
-    lst.grid(row=1, column=0, columnspan=4, padx=8, pady=8)
-
-    def cargar_asistencia():
-        lst.delete(0, tk.END)
-        user_like = "%" + (e_user.get().strip() if e_user.get() else "") + "%"
-        fecha_txt = e_fecha.get().strip() if e_fecha.get() else ""
-
-        con = sqlite3.connect("empresa.db")
-        cur = con.cursor()
-
-        if fecha_txt != "":
-            cur.execute(
-                "SELECT usuario, accion, fecha_hora FROM asistencia "
-                "WHERE usuario LIKE ? AND date(fecha_hora)=date(?) "
-                "ORDER BY id_asistencia DESC",
-                (user_like, fecha_txt)
-            )
-        else:
-            cur.execute(
-                "SELECT usuario, accion, fecha_hora FROM asistencia "
-                "WHERE usuario LIKE ? "
-                "ORDER BY id_asistencia DESC",
-                (user_like,)
-            )
-
-        filas = cur.fetchall()
-        for fila in filas:
-            u = fila[0]
-            a = fila[1]
-            f = fila[2]
-            lst.insert(tk.END, f + " | " + u + " | " + a)
-
-        con.close()
-
-    tk.Button(win, text="Cargar", command=cargar_asistencia).grid(row=0, column=4, padx=6)
-    cargar_asistencia()
-
-def ventana_marcar_asistencia(parent):
-    win = tk.Toplevel(parent)
-    win.title("Marcar Asistencia")
-    win.geometry("420x220")
-
-    tk.Label(win, text="Usuario:").grid(row=0, column=0, padx=6, pady=6)
-    e_user = tk.Entry(win, width=22)
-    e_user.grid(row=0, column=1)
-
-    tk.Label(win, text="Contraseña:").grid(row=1, column=0, padx=6, pady=6)
-    e_pwd = tk.Entry(win, width=22, show='*')
-    e_pwd.grid(row=1, column=1)
-
-    def marcar(accion):
-        u = e_user.get().strip()
-        p = e_pwd.get().strip()
-
-        if u == "" or p == "":
-            messagebox.showwarning("Validación", "Usuario y contraseña requeridos")
-            return
-
-        con = sqlite3.connect("empresa.db")
-        cur = con.cursor()
-        cur.execute("SELECT 1 FROM usuarios WHERE usuario=? AND contraseña=?", (u, p))
-        ok = cur.fetchone() is not None
-
-        if not ok:
-            con.close()
-            messagebox.showerror("Asistencia", "Credenciales inválidas")
-            return
-
-        from datetime import datetime
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cur.execute("INSERT INTO asistencia (usuario, accion, fecha_hora) VALUES (?,?,?)", (u, accion, ts))
-        con.commit()
-        con.close()
-        messagebox.showinfo("Asistencia", accion.capitalize() + " registrada: " + ts)
-
-    tk.Button(win, text="Marcar ENTRADA", width=18, command=lambda: marcar('entrada')).grid(row=2, column=0, padx=6, pady=10)
-    tk.Button(win, text="Marcar SALIDA",  width=18, command=lambda: marcar('salida')).grid(row=2, column=1, padx=6, pady=10)
 
 def ventana_crear_clientes(parent):
     win = tk.Toplevel(parent)
@@ -684,18 +475,6 @@ def abrir_ventana_principal(nombre, rol):
         botones = [
             ("Crear Clientes", lambda: ventana_crear_clientes(ventana)),
             ("Ver Asistencias", lambda: ventana_ver_asistencias(ventana)),
-            ("Buscar Clientes", lambda : ventana_buscar_clientes(ventana)),
-            ("Inventario", None),
-            ("Listado Clientes por Visitar", None),
-            ("Órdenes de Trabajo", None),
-            ("Material Instalado", None),
-            ("Control de Cobros", None),
-            ("Facturar", None),
-            ("Crear Usuarios", None),
-        ]
-        botones = [
-            ("Crear Clientes", lambda: ventana_crear_clientes(ventana)),
-            ("Ver Asistencias", lambda: ventana_ver_asistencias(ventana)),
             ("Buscar Clientes", None),
             ("Inventario", lambda: ventana_inventario(ventana)),
             ("Listado Clientes por Visitar", None),
@@ -731,10 +510,6 @@ def abrir_ventana_principal(nombre, rol):
             b = tk.Button(ventana, text=texto, width=25, font=("Arial", 14), command=cmd)
         canvas.create_window(ancho//2, y, window=b)
         y += 50
-
-    b_salir = tk.Button(ventana, text="Cerrar Sesión", command=ventana.destroy, bg="red", fg="white", font=("Arial", 14), width=25)
-    canvas.create_window(ancho//2, y + 50, window=b_salir)
-
 
     b_salir = tk.Button(ventana, text="Cerrar Sesión", command=ventana.destroy, bg="red", fg="white", font=("Arial", 14), width=25)
     canvas.create_window(ancho//2, y + 20, window=b_salir)
