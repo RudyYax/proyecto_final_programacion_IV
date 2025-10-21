@@ -37,6 +37,16 @@ def crear_tablas():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLe IF NOT EXISTS proveedores (
+        id_proveedor INTEFER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        nit TEXT,
+        telefono TEXT,
+        direccion TEXT,
+    )
+    """)  #Rudy Yax
+
     usuarios_default = [
         ("Rudy Yax", "admin", "1234", "administrador"),
         ("Rudy Yax", "cobro1", "1234", "cobrador"),
@@ -210,6 +220,67 @@ def ventana_marcar_asistencia(parent):
     tk.Button(win, text="Marcar ENTRADA", width=18, command=lambda: marcar('entrada')).grid(row=2, column=0, padx=6, pady=10)
     tk.Button(win, text="Marcar SALIDA",  width=18, command=lambda: marcar('salida')).grid(row=2, column=1, padx=6, pady=10)
 
+def ventana_inventario(parent):
+    win = tk.Toplevel(parent)
+    win.title("Inventario")
+    win.geometry("480x260")
+
+    tk.Label(win, text="Crear Proveedor", font=("Arial", 14, "bold")).pack(pady=10)
+
+    btn_crear_prov = tk.Button(win, text="Crear Proveedor", font=("Arial", 12), width=22, command=lambda: ventana_crear_proveedor(win))
+    btn_crear_prov.pack(pady=8)
+    tk.Button(win, text="Productos (próximamente)", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
+    tk.Button(win, text="Entradas/Salidas (próximamente)", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
+
+def ventana_crear_proveedor(parent):
+    win =tk.Toplevel(parent)
+    win.title("Crear Proveedor")
+    win.geometry("540x300")
+
+    tk.Label(win, text="Nombre:", font=("Arial", 12)).grid(row=0, column=0, padx=8, pady=6, sticky="e")
+    e_nombre = tk.Entry(win, font=("Arial", 12), width=30)
+    e_nombre.grid(row=0, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="NIT:", font=("Arial", 12)).grid(row=1, column=0, padx=8, pady=6, sticky="e")
+    e_nit = tk.Entry(win, font=("Arial", 12), width=30)
+    e_nit.grid(row=1, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Teléfono:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=6, sticky="e")
+    e_tel = tk.Entry(win, font=("Arial", 12), width=30)
+    e_tel.grid(row=2, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Dirección:", font=("Arial", 12)).grid(row=3, column=0, padx=8, pady=6, sticky="e")
+    e_dir = tk.Entry(win, font=("Arial", 12), width=30)
+    e_dir.grid(row=3, column=1, padx=8, pady=6, sticky="w")
+
+    def guardar_proveedor():
+        nom = e_nombre.get().strip()
+        nit = e_nit.get().strip()
+        tel = e_tel.get().strip()
+        dire = e_dir.get().strip()
+
+        if nom == "":
+            messagebox.showwarning("Validación", "El nombre es obligatorio")
+            return
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("INSERT INTO proveedores (nombre, nit, telefono, direccion) VALUES (?,?,?,?)",
+                    (nom, nit if nit else None, tel if tel else None, dire if dire else None))
+        con.commit()
+        con.close()
+
+        messagebox.showinfo("Proveedores", "Proveedor creado correctamente")
+
+        e_nombre.delete(0, tk.END)
+        e_nit.delete(0, tk.END)
+        e_tel.delete(0, tk.END)
+        e_dir.delete(0, tk.END)
+
+    btn_guardar = tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
+                            command=guardar_proveedor, width=18)
+    btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
+
 def abrir_ventana_principal(nombre, rol):
     ventana = tk.Tk()
     ventana.title("Panel - " + rol.capitalize())
@@ -241,7 +312,7 @@ def abrir_ventana_principal(nombre, rol):
             ("Crear Clientes", lambda: ventana_crear_clientes(ventana)),
             ("Ver Asistencias", lambda: ventana_ver_asistencias(ventana)),
             ("Buscar Clientes", None),
-            ("Inventario", None),
+            ("Inventario", lambda: ventana_inventario(ventana)),
             ("Listado Clientes por Visitar", None),
             ("Órdenes de Trabajo", None),
             ("Material Instalado", None),
@@ -277,7 +348,7 @@ def abrir_ventana_principal(nombre, rol):
         y += 50
 
     b_salir = tk.Button(ventana, text="Cerrar Sesión", command=ventana.destroy, bg="red", fg="white", font=("Arial", 14), width=25)
-    canvas.create_window(ancho//2, y + 50, window=b_salir)
+    canvas.create_window(ancho//2, y + 20, window=b_salir)
 
     ventana.fondo_tk = fondo_tk
     ventana.mainloop()
