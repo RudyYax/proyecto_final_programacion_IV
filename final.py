@@ -52,19 +52,22 @@ def crear_tablas():
         id_producto INTEGER PRIMARY KEY AUTOINCREMENT,
         codigo TEXT NOT NULL,
         descripcion TEXT,
-        precio TEXT
+        precio TEXT,
         stock INTEGER DEFAULT 0
     )
     """)
 
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS compras (
-            id_compra INTEGER PRIMARY KEY AUTOINCREMENT,
-            numero_factura TEXT NOT NULL,
-            descripcion TEXT,
-            precio TEXT
-        )
-        """)
+    CREATE TABLE IF NOT EXISTS compras (
+        id_compra INTEGER PRIMARY KEY AUTOINCREMENT,
+        numero_factura TEXT NOT NULL,
+        proveedor_id INTEGER NOT NULL,
+        producto_id INTEGER NOT NULL,
+        cantidad INTEGER NOT NULL,
+        precio_total REAL NOT NULL,
+        fecha_hora TEXT
+    )
+    """)
     usuarios_default = [
         ("Rudy Yax", "admin", "1234", "administrador"),
         ("Rudy Yax", "cobro1", "1234", "cobrador"),
@@ -526,11 +529,11 @@ def ventana_registrar_compra(parent):
 
     tk.Label(win, text="Cantidad:", font=("Arial", 12)).grid(row=3, column=0, padx=8, pady=6, sticky="e")
     e_cant = tk.Entry(win, font=("Arial", 12), width=30)
-    e_cant.grid(row=2, column=1, padx=8, pady=6, sticky="w")
+    e_cant.grid(row=3, column=1, padx=8, pady=6, sticky="w")
 
     tk.Label(win, text="Precio Total:", font=("Arial", 12)).grid(row=4, column=0, padx=8, pady=6, sticky="e")
     e_prec = tk.Entry(win, font=("Arial", 12), width=30)
-    e_prec.grid(row=2, column=1, padx=8, pady=6, sticky="w")
+    e_prec.grid(row=4, column=1, padx=8, pady=6, sticky="w")
 
     def guardar_compra():
         factura = e_fac.get().strip()
@@ -542,7 +545,7 @@ def ventana_registrar_compra(parent):
         if factura == "":
             messagebox.showwarning("Validación", "El Número de Factura es obligatorio")
             return
-        if proveedor_id == "":
+        if proveedor_id <= 0:
             messagebox.showwarning("Validación", "El Proveedor es obligatorio")
             return
         if codigo == "":
@@ -550,8 +553,10 @@ def ventana_registrar_compra(parent):
             return
         if cantidad == "":
             messagebox.showerror("Validación", "La Cantidad del Producto es obligatorio")
+            return
         if precio == "":
             messagebox.showerror("Validación", "EL precio total del Producto es obligatorio")
+            return
 
         try:
             cantidad = int(cantidad)
@@ -577,20 +582,21 @@ def ventana_registrar_compra(parent):
             return
         producto_id, stock_actual = fila_prod
 
-        cur.execute("INSERT INTO compras() VALUES (?,?,?)",
-                    (cod, des if des else None, prec if prec else None))
+        from datetime import datetime
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cur.execute(
+            "INSERT INTO compras (numero_factura, proveedor_id, producto_id, cantidad, precio_total, fecha_hora) "
+            "VALUES (?,?,?,?,?,?)",
+            (factura, proveedor_id, producto_id, cantidad, precio_total, ts)
+        )
+        cur.execute("UPDATE productos SET stock = COALESCE(stock,0) + ? WHERE id_producto=?",(cantidad, producto_id))
         con.commit()
         con.close()
 
-        messagebox.showinfo("Producto", "Producto creado correctamente")
+        messagebox.showinfo("Compras", f"Compra registrada. Stock actualizado: +{cantidad}")
+        win.destroy()
 
-        e_Codigo.delete(0, tk.END)
-        e_Descripcion.delete(0, tk.END)
-        e_Precio.delete(0, tk.END)
-
-    btn_guardar = tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
-                            command=guardar_producto, width=18)
-    btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
+    tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",command=guardar_compra, width=18).grid(row=5, column=0, columnspan=3, pady=16)
 
 def ventana_seleccionar_proveedor(parent, on_select):
     win = tk.Toplevel(parent)
