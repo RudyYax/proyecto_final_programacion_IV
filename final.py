@@ -378,7 +378,6 @@ def ventana_login_gui():
     b_salir = tk.Button(ventana_login, text="Salir", command=ventana_login.destroy,
                         bg="red", fg="white", font=("Arial", 14), width=20)
     canvas.create_window(ancho//2, 640, window=b_salir)
-
     ventana_login.fondo_tk = fondo_tk
     ventana_login.mainloop()
 
