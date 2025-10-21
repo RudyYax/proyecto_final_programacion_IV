@@ -296,6 +296,7 @@ def ventana_inventario(parent):
 
     tk.Button(win, text="Proveedor", font=("Arial", 12), width=22, command=lambda: ventana_proveedores(win)).pack(pady=8)
     tk.Button(win, text="Productos", font=("Arial", 12), width=22, command=lambda: ventana_productos(win)).pack(pady=8)
+    tk.Button(win, text="Ingresar Compras", font=("Arial", 12), width=22, command=lambda: ventana_registrar_compra(win)).pack(pady=8)
     tk.Button(win, text="Entradas/Salidas (próximamente)", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
 
 def ventana_proveedores(parent):
@@ -494,6 +495,145 @@ def ventana_crear_productos(parent):
     btn_guardar = tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
                             command=guardar_producto, width=18)
     btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
+
+def ventana_registrar_compra(parent):
+    win =tk.Toplevel(parent)
+    win.title("Registrar Compra")
+    win.geometry("540x300")
+    proveedor_id_var = tk.IntVar(value=0)
+
+    tk.Label(win, text="No. Factura:", font=("Arial", 12)).grid(row=0, column=0, padx=8, pady=6, sticky="e")
+    e_fac = tk.Entry(win, font=("Arial", 12), width=30)
+    e_fac.grid(row=0, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Proveedor:", font=("Arial", 12)).grid(row=1, column=0, padx=8, pady=6, sticky="e")
+    e_prov_nombre = tk.Entry(win, font=("Arial", 12), width=32, state="readonly")
+    e_prov_nombre.grid(row=1, column=1, padx=8, pady=6, sticky="w")
+
+    def set_proveedor(pid, nombre):
+        proveedor_id_var.set(pid)
+        e_prov_nombre.config(state="normal")
+        e_prov_nombre.delete(0, tk.END)
+        e_prov_nombre.insert(0, nombre)
+        e_prov_nombre.config(state="readonly")
+
+    tk.Button(win, text="Seleccionar...", font=("Arial", 11),
+              command=lambda: ventana_seleccionar_proveedor(win, set_proveedor)).grid(row=1, column=2, padx=6, pady=6)
+
+    tk.Label(win, text="Codigo del producto:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=6, sticky="e")
+    e_cod = tk.Entry(win, font=("Arial", 12), width=30)
+    e_cod.grid(row=2, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Cantidad:", font=("Arial", 12)).grid(row=3, column=0, padx=8, pady=6, sticky="e")
+    e_cant = tk.Entry(win, font=("Arial", 12), width=30)
+    e_cant.grid(row=2, column=1, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Precio Total:", font=("Arial", 12)).grid(row=4, column=0, padx=8, pady=6, sticky="e")
+    e_prec = tk.Entry(win, font=("Arial", 12), width=30)
+    e_prec.grid(row=2, column=1, padx=8, pady=6, sticky="w")
+
+    def guardar_compra():
+        factura = e_fac.get().strip()
+        proveedor_id = proveedor_id_var.get()
+        codigo = e_cod.get().strip()
+        cantidad = e_cant.get().strip()
+        precio = e_prec.get().strip()
+
+        if factura == "":
+            messagebox.showwarning("Validación", "El Número de Factura es obligatorio")
+            return
+        if proveedor_id == "":
+            messagebox.showwarning("Validación", "El Proveedor es obligatorio")
+            return
+        if codigo == "":
+            messagebox.showwarning("Validación", "El Codigo del Producto es obligatorio")
+            return
+        if cantidad == "":
+            messagebox.showerror("Validación", "La Cantidad del Producto es obligatorio")
+        if precio == "":
+            messagebox.showerror("Validación", "EL precio total del Producto es obligatorio")
+
+        try:
+            cantidad = int(cantidad)
+            if cantidad <= 0: raise ValueError
+        except ValueError:
+            messagebox.showwarning("Validación", "Cantidad debe ser un entero positivo")
+            return
+
+        try:
+            precio_total = float(precio)
+            if precio_total <= 0: raise ValueError
+        except ValueError:
+            messagebox.showwarning("Validación", "Precio total debe ser un número positivo")
+            return
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("SELECT id_producto, COALESCE(stock,0) FROM productos WHERE codigo=?", (codigo,))
+        fila_prod = cur.fetchone()
+        if not fila_prod:
+            con.close()
+            messagebox.showerror("Compras", "Producto con ese código no existe")
+            return
+        producto_id, stock_actual = fila_prod
+
+        cur.execute("INSERT INTO compras() VALUES (?,?,?)",
+                    (cod, des if des else None, prec if prec else None))
+        con.commit()
+        con.close()
+
+        messagebox.showinfo("Producto", "Producto creado correctamente")
+
+        e_Codigo.delete(0, tk.END)
+        e_Descripcion.delete(0, tk.END)
+        e_Precio.delete(0, tk.END)
+
+    btn_guardar = tk.Button(win, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
+                            command=guardar_producto, width=18)
+    btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
+
+def ventana_seleccionar_proveedor(parent, on_select):
+    win = tk.Toplevel(parent)
+    win.title("Seleccionar Proveedor")
+    win.geometry("600x420")
+
+    tk.Label(win, text="Doble clic o botón Seleccionar", font=("Arial", 11)).grid(row=0, column=0, padx=8, pady=6, sticky="w")
+
+    lst = tk.Listbox(win, width=80, height=16)
+    lst.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
+
+    scr = tk.Scrollbar(win, orient="vertical", command=lst.yview)
+    scr.grid(row=1, column=1, sticky="ns", pady=8)
+    lst.config(yscrollcommand=scr.set)
+
+    win.grid_rowconfigure(1, weight=1)
+    win.grid_columnconfigure(0, weight=1)
+
+    con = sqlite3.connect("empresa.db")
+    cur = con.cursor()
+    cur.execute("SELECT id_proveedor, nombre, IFNULL(nit,''), IFNULL(telefono,'') FROM proveedores ORDER BY nombre ASC")
+    filas = cur.fetchall()
+    con.close()
+    data = []
+    for (pid, nom, nit, tel) in filas:
+        data.append((pid, nom))
+        lst.insert(tk.END, f"{pid:04d} | {nom} | NIT:{nit} | Tel:{tel}")
+
+    def seleccionar():
+        sel = lst.curselection()
+        if not sel:
+            messagebox.showwarning("Seleccionar", "Elija un proveedor de la lista")
+            return
+        idx = sel[0]
+        pid, nom = data[idx]
+        on_select(pid, nom)
+        win.destroy()
+
+    lst.bind("<Double-Button-1>", lambda e: seleccionar())
+
+    tk.Button(win, text="Seleccionar", command=seleccionar, width=18).grid(row=2, column=0, padx=8, pady=8, sticky="e")
+    tk.Button(win, text="Cancelar", command=win.destroy, width=12).grid(row=2, column=0, padx=8, pady=8, sticky="w")
+
 def abrir_ventana_principal(nombre, rol):
     ventana = tk.Tk()
     ventana.title("Panel - " + rol.capitalize())
