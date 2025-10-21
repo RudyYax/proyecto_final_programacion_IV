@@ -525,7 +525,6 @@ def abrir_ventana_principal(nombre, rol):
             ("Crear Clientes", lambda: ventana_crear_clientes(ventana)),
             ("Ver Asistencias", lambda: ventana_ver_asistencias(ventana)),
             ("Buscar Clientes", lambda: ventana_buscar_clientes(ventana)),
-            ("Buscar Clientes", lambda : ventana_buscar_clientes(ventana)),
             ("Inventario", lambda: ventana_inventario(ventana)),
             ("Listado Clientes por Visitar", None),
             ("Órdenes de Trabajo", None),
