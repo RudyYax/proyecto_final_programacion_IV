@@ -53,9 +53,18 @@ def crear_tablas():
         codigo TEXT NOT NULL,
         descripcion TEXT,
         precio TEXT
+        stock INTEGER DEFAULT 0
     )
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS compras (
+            id_compra INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_factura TEXT NOT NULL,
+            descripcion TEXT,
+            precio TEXT
+        )
+        """)
     usuarios_default = [
         ("Rudy Yax", "admin", "1234", "administrador"),
         ("Rudy Yax", "cobro1", "1234", "cobrador"),
@@ -234,13 +243,60 @@ def ventana_inventario(parent):
     win.title("Inventario")
     win.geometry("480x260")
 
-    tk.Label(win, text="Crear Proveedor", font=("Arial", 14, "bold")).pack(pady=10)
+    tk.Label(win, text="Inventario", font=("Arial", 14, "bold")).pack(pady=10)
 
-    btn_crear_prov = tk.Button(win, text="Crear Proveedor", font=("Arial", 12), width=22, command=lambda: ventana_crear_proveedor(win))
-    btn_crear_prov.pack(pady=8)
-    btn_crear_prod = tk.Button(win, text="Crear Productos", font=("Arial", 12), width=22, command=lambda: ventana_crear_productos(win))
-    btn_crear_prod.pack(pady=8)
+    tk.Button(win, text="Proveedor", font=("Arial", 12), width=22, command=lambda: ventana_proveedores(win)).pack(pady=8)
+    tk.Button(win, text="Productos", font=("Arial", 12), width=22, command=lambda: ventana_productos(win)).pack(pady=8)
     tk.Button(win, text="Entradas/Salidas (próximamente)", font=("Arial", 12), width=22, command=lambda: messagebox.showinfo("Info", "Pendiente")).pack(pady=4)
+
+def ventana_proveedores(parent):
+    win = tk.Toplevel(parent)
+    win.title("Inventario - Proveedores")
+    win.geometry("420x220")
+
+    tk.Label(win, text="Proveedores", font=("Arial", 14, "bold")).pack(pady=10)
+
+    tk.Button(win, text="Agregar Proveedor", font=("Arial", 12), width=22,
+              command=lambda: ventana_crear_proveedor(win)).pack(pady=6)
+
+    tk.Button(win, text="Mostrar Proveedores", font=("Arial", 12), width=22,
+              command=lambda: ventana_listar_proveedores(win)).pack(pady=6)
+def ventana_listar_proveedores(parent):
+    win = tk.Toplevel(parent)
+    win.title("Listado de Proveedores")
+    win.geometry("750x420")
+
+    tk.Label(win, text="Proveedores registrados", font=("Arial", 12, "bold")).grid(row=0, column=0, padx=8, pady=8, sticky="w")
+
+    lst = tk.Listbox(win, width=100, height=18)
+    lst.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
+
+    scr = tk.Scrollbar(win, orient="vertical", command=lst.yview)
+    scr.grid(row=1, column=1, sticky="ns", pady=8)
+    lst.config(yscrollcommand=scr.set)
+
+    lbl_total = tk.Label(win, text="0 resultados")
+    lbl_total.grid(row=2, column=0, padx=8, pady=4, sticky="w")
+
+    win.grid_rowconfigure(1, weight=1)
+    win.grid_columnconfigure(0, weight=1)
+
+    def cargar():
+        lst.delete(0, tk.END)
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("SELECT id_proveedor, nombre, IFNULL(nit,''), IFNULL(telefono,''), IFNULL(direccion,'') "
+                    "FROM proveedores ORDER BY id_proveedor DESC")
+        filas = cur.fetchall()
+        con.close()
+
+        for (pid, nom, nit, tel, dirx) in filas:
+            lst.insert(tk.END, f"{pid:04d} | {nom} | NIT:{nit} | Tel:{tel} | Dir:{dirx}")
+
+        lbl_total.config(text=f"{len(filas)} resultados")
+
+    tk.Button(win, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
+    cargar()
 
 def ventana_crear_proveedor(parent):
     win =tk.Toplevel(parent)
@@ -291,6 +347,55 @@ def ventana_crear_proveedor(parent):
                             command=guardar_proveedor, width=18)
     btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
 
+def ventana_productos(parent):
+    win = tk.Toplevel(parent)
+    win.title("Inventario - Productos")
+    win.geometry("420x220")
+
+    tk.Label(win, text="Productos", font=("Arial", 14, "bold")).pack(pady=10)
+
+    tk.Button(win, text="Agregar Producto", font=("Arial", 12), width=22,
+              command=lambda: ventana_crear_productos(win)).pack(pady=6)
+
+    tk.Button(win, text="Mostrar Productos", font=("Arial", 12), width=22,
+              command=lambda: ventana_listar_productos(win)).pack(pady=6)
+
+def ventana_listar_productos(parent):
+    win = tk.Toplevel(parent)
+    win.title("Listado de Productos")
+    win.geometry("750x420")
+
+    tk.Label(win, text="Productos registrados", font=("Arial", 12, "bold")).grid(row=0, column=0, padx=8, pady=8, sticky="w")
+
+    lst = tk.Listbox(win, width=100, height=18)
+    lst.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
+
+    scr = tk.Scrollbar(win, orient="vertical", command=lst.yview)
+    scr.grid(row=1, column=1, sticky="ns", pady=8)
+    lst.config(yscrollcommand=scr.set)
+
+    lbl_total = tk.Label(win, text="0 resultados")
+    lbl_total.grid(row=2, column=0, padx=8, pady=4, sticky="w")
+
+    win.grid_rowconfigure(1, weight=1)
+    win.grid_columnconfigure(0, weight=1)
+
+    def cargar():
+        lst.delete(0, tk.END)
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("SELECT id_producto, IFNULL(codigo,''), IFNULL(descripcion,''), IFNULL(precio,'') "
+                    "FROM productos ORDER BY id_producto DESC")
+        filas = cur.fetchall()
+        con.close()
+
+        for (pid, cod, des, pre) in filas:
+            lst.insert(tk.END, f"{pid:04d} | COD:{cod} | {des} | Precio:{pre}")
+
+        lbl_total.config(text=f"{len(filas)} resultados")
+
+    tk.Button(win, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
+    cargar()
 def ventana_crear_productos(parent):
     win =tk.Toplevel(parent)
     win.title("Crear Producto")
@@ -307,6 +412,7 @@ def ventana_crear_productos(parent):
     tk.Label(win, text="Precio:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=6, sticky="e")
     e_Precio = tk.Entry(win, font=("Arial", 12), width=30)
     e_Precio.grid(row=2, column=1, padx=8, pady=6, sticky="w")
+
 
     def guardar_producto():
         cod = e_Codigo.get().strip()
