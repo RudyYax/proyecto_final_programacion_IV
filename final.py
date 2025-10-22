@@ -992,10 +992,6 @@ def ventana_listar_ordenes(parent):
     cargar()
 
 
-
-
-
-
 def abrir_ventana_principal(nombre, rol):
     ventana = tk.Tk()
     ventana.title("Panel - " + rol.capitalize())
@@ -1028,7 +1024,7 @@ def abrir_ventana_principal(nombre, rol):
             ("Ver Asistencias", lambda: ventana_ver_asistencias(ventana)),
             ("Gestión de Clientes", lambda: ventana_gestion_clientes(ventana)),
             ("Inventario", lambda: ventana_inventario(ventana)),
-            ("Listado Clientes por Visitar", None),
+            ("Listado Clientes por Visitar", lambda: ventana_listar_ordenes()),
             ("Órdenes de Trabajo", lambda: ventana_Ordenes_Trabajo(ventana)),
             ("Material Instalado", None),
             ("Control de Cobros", None),
