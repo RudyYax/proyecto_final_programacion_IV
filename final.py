@@ -68,6 +68,12 @@ def crear_tablas():
         fecha_hora TEXT
     )
     """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS bajas_clientes(
+        id_cliente INTEGER PRIMARY KEY,
+        fecha_baja TEXT
+    )
+    """)
     usuarios_default = [
         ("Rudy Yax", "admin", "1234", "administrador"),
         ("Rudy Yax", "cobro1", "1234", "cobrador"),
@@ -149,54 +155,180 @@ def ventana_crear_clientes(parent):
                             command=guardar_cliente, width=18)
     btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
 
-def ventana_buscar_clientes(parent):
+def ventana_gestion_clientes(parent):
     win = tk.Toplevel(parent)
-    win.title("Buscar Clientes")
-    win.geometry("700x400")
+    win.title("Gestión de Clientes")
+    win.geometry("840x520")
 
-    tk.Label(win, text="Buscar por nombre o código:").pack(pady=5)
-    entrada = tk.Entry(win, width=40)
-    entrada.pack(pady=5)
+    tk.Label(win, text="Buscar (nombre o código):").grid(row=0, column=0, padx=8, pady=8, sticky="e")
+    e_q = tk.Entry(win, width=30)
+    e_q.grid(row=0, column=1, padx=8, pady=8, sticky="w")
 
-    lista = tk.Listbox(win, width=90, height=12)
-    lista.pack(pady=10)
+    b_buscar = tk.Button(win, text="Buscar", width=12)
+    b_buscar.grid(row=0, column=2, padx=6, pady=8)
+    b_limpiar = tk.Button(win, text="Limpiar", width=12)
+    b_limpiar.grid(row=0, column=3, padx=6, pady=8)
+
+    lst = tk.Listbox(win, width=100, height=16)
+    lst.grid(row=1, column=0, columnspan=4, padx=8, pady=6, sticky="nsew")
+
+    scr = tk.Scrollbar(win, orient="vertical", command=lst.yview)
+    scr.grid(row=1, column=4, sticky="ns", pady=6)
+    lst.config(yscrollcommand=scr.set)
+
+    win.grid_rowconfigure(1, weight=1)
+    win.grid_columnconfigure(1, weight=1)
+
+    # Panel de detalle / edición
+    frame = tk.Frame(win)
+    frame.grid(row=2, column=0, columnspan=4, padx=8, pady=10, sticky="we")
+
+    v_id = tk.StringVar()
+    v_estado = tk.StringVar(value="—")
+
+    tk.Label(frame, text="ID:").grid(row=0, column=0, sticky="e", padx=6, pady=4)
+    tk.Label(frame, textvariable=v_id, width=10).grid(row=0, column=1, sticky="w", padx=6, pady=4)
+
+    tk.Label(frame, text="Estado:").grid(row=0, column=2, sticky="e", padx=6, pady=4)
+    tk.Label(frame, textvariable=v_estado).grid(row=0, column=3, sticky="w", padx=6, pady=4)
+
+    tk.Label(frame, text="Nombre:").grid(row=1, column=0, sticky="e", padx=6, pady=4)
+    e_nom = tk.Entry(frame, width=32)
+    e_nom.grid(row=1, column=1, sticky="w", padx=6, pady=4)
+
+    tk.Label(frame, text="Teléfono:").grid(row=1, column=2, sticky="e", padx=6, pady=4)
+    e_tel = tk.Entry(frame, width=22)
+    e_tel.grid(row=1, column=3, sticky="w", padx=6, pady=4)
+
+    tk.Label(frame, text="Dirección:").grid(row=2, column=0, sticky="e", padx=6, pady=4)
+    e_dir = tk.Entry(frame, width=60)
+    e_dir.grid(row=2, column=1, columnspan=3, sticky="we", padx=6, pady=4)
+
+    b_guardar = tk.Button(frame, text="Guardar Cambios", width=18, bg="#4CAF50", fg="white")
+    b_guardar.grid(row=3, column=0, padx=6, pady=8, sticky="w")
+
+    b_toggle = tk.Button(frame, text="Desactivar", width=14)
+    b_toggle.grid(row=3, column=1, padx=6, pady=8, sticky="w")
+
+    b_cerrar = tk.Button(frame, text="Cerrar", width=10, command=win.destroy)
+    b_cerrar.grid(row=3, column=3, padx=6, pady=8, sticky="e")
+
+    # Memoria simple de resultados [(id, nom, tel, dir, activo)]
+    win.resultados = []
+
+    def mostrar_resultados(rows):
+        lst.delete(0, tk.END)
+        win.resultados = rows
+        if not rows:
+            lst.insert(tk.END, "Sin resultados")
+            return
+        for (cid, nom, tel, dire, activo) in rows:
+            est = "ACTIVO" if activo == 1 else "DE BAJA"
+            lst.insert(tk.END, f"[{cid}] {nom} | Tel:{tel or ''} | Dir:{dire or ''} | {est}")
 
     def buscar():
-        busqueda = entrada.get().strip()
-        if busqueda == "":
-            messagebox.showwarning("Buscar", "Escribe algo para buscar.")
+        q = e_q.get().strip()
+        if q == "":
+            messagebox.showwarning("Buscar", "Escribe un nombre o un código.")
             return
 
         con = sqlite3.connect("empresa.db")
         cur = con.cursor()
 
-        if busqueda.isdigit():
-            cur.execute("SELECT id_cliente, nombre, nit, telefono, direccion FROM clientes WHERE id_cliente=? OR nombre LIKE ?", (busqueda, f"%{busqueda}%"))
+        if q.isdigit():
+            cur.execute(
+                """
+                SELECT c.id_cliente, c.nombre, c.telefono, c.direccion,
+                       CASE WHEN b.id_cliente IS NULL THEN 1 ELSE 0 END AS activo
+                FROM clientes c
+                LEFT JOIN bajas_clientes b ON b.id_cliente = c.id_cliente
+                WHERE c.id_cliente = ? OR c.nombre LIKE ?
+                ORDER BY c.nombre
+                """,
+                (int(q), f"%{q}%")
+            )
         else:
-            cur.execute("SELECT id_cliente, nombre, nit, telefono, direccion FROM clientes WHERE nombre LIKE ?", (f"%{busqueda}%",))
-
-        filas = cur.fetchall()
+            cur.execute(
+                """
+                SELECT c.id_cliente, c.nombre, c.telefono, c.direccion,
+                       CASE WHEN b.id_cliente IS NULL THEN 1 ELSE 0 END AS activo
+                FROM clientes c
+                LEFT JOIN bajas_clientes b ON b.id_cliente = c.id_cliente
+                WHERE c.nombre LIKE ?
+                ORDER BY c.nombre
+                """,
+                (f"%{q}%",)
+            )
+        rows = cur.fetchall()
         con.close()
-
-        lista.delete(0, tk.END)
-        if not filas:
-            lista.insert(tk.END, "No se encontraron clientes.")
-            return
-
-        for fila in filas:
-            idc, nom, nit, tel, dire = fila
-            texto = f"ID: {idc} | {nom} | NIT: {nit or ''} | Tel: {tel or ''} | Dir: {dire or ''}"
-            lista.insert(tk.END, texto)
-
-    boton_buscar = tk.Button(win, text="Buscar", command=buscar, width=15, bg="#4CAF50", fg="white")
-    boton_buscar.pack(pady=5)
+        mostrar_resultados(rows)
 
     def limpiar():
-        entrada.delete(0, tk.END)
-        lista.delete(0, tk.END)
+        e_q.delete(0, tk.END)
+        lst.delete(0, tk.END)
+        v_id.set(""); v_estado.set("—")
+        e_nom.delete(0, tk.END); e_tel.delete(0, tk.END); e_dir.delete(0, tk.END)
+        win.resultados = []
 
-    boton_limpiar = tk.Button(win, text="Limpiar", command=limpiar, width=15, bg="orange", fg="white")
-    boton_limpiar.pack(pady=5)
+    def cargar_detalle(idx):
+        if idx is None or idx < 0 or idx >= len(win.resultados):
+            return
+        cid, nom, tel, dire, activo = win.resultados[idx]
+        v_id.set(str(cid))
+        v_estado.set("ACTIVO" if activo == 1 else "DE BAJA")
+        e_nom.delete(0, tk.END); e_nom.insert(0, nom or "")
+        e_tel.delete(0, tk.END); e_tel.insert(0, tel or "")
+        e_dir.delete(0, tk.END); e_dir.insert(0, dire or "")
+        b_toggle.config(text="Desactivar" if activo == 1 else "Activar")
+
+    def on_select(_):
+        sel = lst.curselection()
+        if not sel: return
+        cargar_detalle(sel[0])
+
+    def guardar_cambios():
+        if v_id.get() == "":
+            messagebox.showwarning("Guardar", "Selecciona un cliente.")
+            return
+        cid = int(v_id.get())
+        nom = e_nom.get().strip()
+        tel = e_tel.get().strip()
+        dire = e_dir.get().strip()
+        if nom == "":
+            messagebox.showwarning("Validación", "El nombre es obligatorio.")
+            return
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("UPDATE clientes SET nombre=?, telefono=?, direccion=? WHERE id_cliente=?",
+                    (nom, tel if tel else None, dire if dire else None, cid))
+        con.commit(); con.close()
+        messagebox.showinfo("Guardar", "Datos actualizados.")
+        buscar()
+
+    def toggle_estado():
+        if v_id.get() == "":
+            messagebox.showwarning("Estado", "Selecciona un cliente.")
+            return
+        cid = int(v_id.get())
+        estado = v_estado.get()
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        if estado == "ACTIVO":
+            from datetime import datetime
+            ts = datetime.now().strftime("%Y-%m-%d")
+            cur.execute("INSERT OR IGNORE INTO bajas_clientes (id_cliente, fecha_baja) VALUES (?,?)", (cid, ts))
+        else:
+            cur.execute("DELETE FROM bajas_clientes WHERE id_cliente=?", (cid,))
+        con.commit(); con.close()
+        buscar()
+
+    b_buscar.config(command=buscar)
+    b_limpiar.config(command=limpiar)
+    lst.bind("<<ListboxSelect>>", on_select)
+    b_guardar.config(command=guardar_cambios)
+    b_toggle.config(command=toggle_estado)
+
+    e_q.bind("<Return>", lambda e: buscar())
 
 def ventana_ver_asistencias(parent):
     win = tk.Toplevel(parent)
@@ -758,7 +890,7 @@ def abrir_ventana_principal(nombre, rol):
         botones = [
             ("Crear Clientes", lambda: ventana_crear_clientes(ventana)),
             ("Ver Asistencias", lambda: ventana_ver_asistencias(ventana)),
-            ("Buscar Clientes", lambda: ventana_buscar_clientes(ventana)),
+            ("Gestión de Clientes", lambda: ventana_gestion_clientes(ventana)),
             ("Inventario", lambda: ventana_inventario(ventana)),
             ("Listado Clientes por Visitar", None),
             ("Órdenes de Trabajo", None),
