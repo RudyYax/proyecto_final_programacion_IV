@@ -1029,7 +1029,7 @@ def abrir_ventana_principal(nombre, rol):
             ("Gestión de Clientes", lambda: ventana_gestion_clientes(ventana)),
             ("Inventario", lambda: ventana_inventario(ventana)),
             ("Listado Clientes por Visitar", None),
-            ("Órdenes de Trabajo", ventana_Ordenes_Trabajo((ventana))),
+            ("Órdenes de Trabajo", lambda: ventana_Ordenes_Trabajo(ventana)),
             ("Material Instalado", None),
             ("Control de Cobros", None),
             ("Facturar", None),
