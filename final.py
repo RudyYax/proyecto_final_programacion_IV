@@ -74,6 +74,17 @@ def crear_tablas():
         fecha_baja TEXT
     )
     """)
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ordenes_trabajo (
+            id_orden INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_id INTEGER NOT NULL,
+            falla TEXT NOT NULL,
+            fecha_revision TEXT,
+            fecha_creacion TEXT
+        )
+        """)
+
     usuarios_default = [
         ("Rudy Yax", "admin", "1234", "administrador"),
         ("Rudy Yax", "cobro1", "1234", "cobrador"),
@@ -155,6 +166,39 @@ def ventana_crear_clientes(parent):
                             command=guardar_cliente, width=18)
     btn_guardar.grid(row=4, column=0, columnspan=2, pady=16)
 
+#Este sirve para que en cualquier momento cuando tenga que buscar algun cliente por medio de id se
+# pueda reutilizar y no agregar mas líneas de codigo. :) // Rudy Yax
+def obtener_cliente_id(id_cliente):
+        try:
+            cid = int(id_cliente)
+        except (ValueError, TypeError):
+            return None
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("""
+                SELECT id_cliente, IFNULL(nombre,''), IFNULL(nit,''), IFNULL(telefono,''), IFNULL(direccion,'')
+                FROM clientes
+                WHERE id_cliente=?
+            """, (cid,))
+        fila = cur.fetchone()
+        con.close()
+        return fila
+
+def mostrar_cliente_id(parent, id_cliente):
+        fila = obtener_cliente_id(id_cliente)
+        if not fila:
+            messagebox.showwarning("Cliente", "No se encontró el cliente con ese ID", parent=parent)
+            return
+        cid, nombre, nit, tel, dire = fila
+        msg = (
+            f"ID: {cid}\n"
+            f"Nombre: {nombre}\n"
+            f"NIT: {nit}\n"
+            f"Teléfono: {tel}\n"
+            f"Dirección: {dire}"
+        )
+        messagebox.showinfo("Datos del Cliente", msg, parent=parent)
+
 def ventana_gestion_clientes(parent):
     win = tk.Toplevel(parent)
     win.title("Gestión de Clientes")
@@ -179,7 +223,6 @@ def ventana_gestion_clientes(parent):
     win.grid_rowconfigure(1, weight=1)
     win.grid_columnconfigure(1, weight=1)
 
-    # Panel de detalle / edición
     frame = tk.Frame(win)
     frame.grid(row=2, column=0, columnspan=4, padx=8, pady=10, sticky="we")
 
@@ -212,8 +255,6 @@ def ventana_gestion_clientes(parent):
 
     b_cerrar = tk.Button(frame, text="Cerrar", width=10, command=win.destroy)
     b_cerrar.grid(row=3, column=3, padx=6, pady=8, sticky="e")
-
-    # Memoria simple de resultados [(id, nom, tel, dir, activo)]
     win.resultados = []
 
     def mostrar_resultados(rows):
@@ -434,7 +475,6 @@ def ventana_inventario(parent):
     tk.Button(win, text="Ingresar Compras", font=("Arial", 12), width=22, command=lambda: ventana_registrar_compra(win)).pack(pady=8)
     tk.Button(win, text="Ver Compras Realizadas", font=("Arial", 12), width=22,command=lambda: ventana_ver_compras(win)).pack(pady=6)
     tk.Button(win, text="Inventario general", font=("Arial", 12), width=22,command=lambda: ventana_ver_inventario(win)).pack(pady=6)
-
 
 def ventana_proveedores(parent):
     win = tk.Toplevel(parent)
@@ -771,7 +811,6 @@ def ventana_seleccionar_proveedor(parent, on_select):
 
     tk.Button(win, text="Seleccionar", command=seleccionar, width=18).grid(row=2, column=0, padx=8, pady=8, sticky="e")
     tk.Button(win, text="Cancelar", command=win.destroy, width=12).grid(row=2, column=0, padx=8, pady=8, sticky="w")
-
 def ventana_ver_compras(parent):
     win = tk.Toplevel(parent)
     win.title("Compras Realizadas")
@@ -809,7 +848,6 @@ def ventana_ver_compras(parent):
 
     tk.Button(win, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
     cargar()
-
 def ventana_ver_inventario(parent):
     win = tk.Toplevel(parent)
     win.title("Inventario - Costo por Unidad")
@@ -860,6 +898,104 @@ def ventana_ver_inventario(parent):
     tk.Button(win, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
     cargar()
 
+def ventana_Ordenes_Trabajo(parent):
+    win = tk.Toplevel(parent)
+    win.title("Ordenes de Trabajo")
+    win.geometry("400x400")
+
+    tk.Label(win, text="Ordenes de Trabajo", font=("Arial", 14, "bold")).pack(pady=10)
+    tk.Button(win, text="Crear Orden de Trabajo", font=("Arial", 12), width=28,command=lambda: crear_ordenes(win)).pack(pady=8)
+    tk.Button(win, text="Mostrar Ordenes de Trabajo", font=("Arial", 12), width=28,command=lambda: ventana_listar_ordenes(win)).pack(pady=8)
+def crear_ordenes(parent):
+    win = tk.Toplevel(parent)
+    win.title("Crear orden")
+    win.geometry("560x340")
+
+    tk.Label(win, text="ID del cliente:", font=("Arial", 12)).grid(row=0, column=0, padx=8, pady=6, sticky="e")
+    e_cod_cli = tk.Entry(win, font=("Arial", 12), width=18)
+    e_cod_cli.grid(row=0, column=1, padx=8, pady=6, sticky="w")
+    tk.Button(win, text="Ver datos", font=("Arial", 11), command=lambda: mostrar_cliente_id(win, e_cod_cli.get().strip())).grid(row=0, column=2, padx=6, pady=6)
+
+    tk.Label(win, text="Falla Registrada:", font=("Arial", 12)).grid(row=1, column=0, padx=8, pady=6, sticky="e")
+    e_falla = tk.Entry(win, font=("Arial", 12), width=30)
+    e_falla.grid(row=1, column=1, columnspan=2, padx=8, pady=6, sticky="w")
+
+    tk.Label(win, text="Fecha de Revisión:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=6, sticky="e")
+    e_fecha = tk.Entry(win, font=("Arial", 12), width=30)
+    e_fecha.grid(row=2, column=1, columnspan=2, padx=8, pady=6, sticky="w")
+
+    def guardar_orden():
+        cid_txt = e_cod_cli.get().strip()
+        falla = e_falla.get().strip()
+        fecha_rev = e_fecha.get().strip()
+
+        if cid_txt == "" or not cid_txt.isdigit():
+            messagebox.showwarning("Validación", "Ingresa un ID de cliente numérico", parent=win)
+            return
+        if falla == "":
+            messagebox.showwarning("Validación", "Describe la falla registrada", parent=win)
+            return
+
+        cli = obtener_cliente_id(cid_txt)
+        if not cli:
+            messagebox.showerror("Cliente", "No existe un cliente con ese ID", parent=win)
+            return
+
+        from datetime import datetime
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("""INSERT INTO ordenes_trabajo (cliente_id, falla, fecha_revision, fecha_creacion) VALUES (?,?,?,?)""", (int(cid_txt), falla, fecha_rev if fecha_rev else None, ts))
+        con.commit()
+        con.close()
+
+        messagebox.showinfo("Órdenes", "Orden creada correctamente.", parent=win)
+        win.destroy()
+
+    tk.Button(win, text="Guardar Orden", font=("Arial", 12), bg="#4CAF50", fg="white", width=18,command=guardar_orden).grid(row=3, column=1, pady=16)
+    tk.Button(win, text="Cancelar", font=("Arial", 12), width=12, command=win.destroy).grid(row=3, column=2, padx=6,pady=16)
+def ventana_listar_ordenes(parent):
+    win = tk.Toplevel(parent)
+    win.title("Órdenes de Trabajo")
+    win.geometry("820x420")
+
+    tk.Label(win, text="Listado de Órdenes", font=("Arial", 13, "bold")).grid(row=0, column=0, padx=8, pady=8, sticky="w")
+
+    lst = tk.Listbox(win, width=115, height=18)
+    lst.grid(row=1, column=0, padx=8, pady=8, sticky="nsew")
+
+    scr = tk.Scrollbar(win, orient="vertical", command=lst.yview)
+    scr.grid(row=1, column=1, sticky="ns", pady=8)
+    lst.config(yscrollcommand=scr.set)
+
+    lbl_total = tk.Label(win, text="0 órdenes")
+    lbl_total.grid(row=2, column=0, padx=8, pady=4, sticky="w")
+
+    def cargar():
+        lst.delete(0, tk.END)
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("""
+            SELECT ot.id_orden, ot.cliente_id, IFNULL(c.nombre,''), IFNULL(ot.falla,''),                   IFNULL(ot.fecha_revision,''), IFNULL(ot.fecha_creacion,'')
+            FROM ordenes_trabajo ot
+            LEFT JOIN clientes c ON c.id_cliente = ot.cliente_id
+            ORDER BY ot.id_orden DESC
+        """)
+        filas = cur.fetchall()
+        con.close()
+
+        for (oid, cid, nom, falla, frev, fcrea) in filas: lst.insert(tk.END, f"OT:{oid:04d} | Cliente:{cid} - {nom} | Falla:{falla} | Rev:{frev} | Creada:{fcrea}")
+        lbl_total.config(text=f"{len(filas)} órdenes")
+
+    tk.Button(win, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
+    cargar()
+
+
+
+
+
+
 def abrir_ventana_principal(nombre, rol):
     ventana = tk.Tk()
     ventana.title("Panel - " + rol.capitalize())
@@ -893,7 +1029,7 @@ def abrir_ventana_principal(nombre, rol):
             ("Gestión de Clientes", lambda: ventana_gestion_clientes(ventana)),
             ("Inventario", lambda: ventana_inventario(ventana)),
             ("Listado Clientes por Visitar", None),
-            ("Órdenes de Trabajo", None),
+            ("Órdenes de Trabajo", ventana_Ordenes_Trabajo((ventana))),
             ("Material Instalado", None),
             ("Control de Cobros", None),
             ("Facturar", None),
