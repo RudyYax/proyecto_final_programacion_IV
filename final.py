@@ -455,101 +455,196 @@ def ventana_gestion_clientes(padre):
     boton_alternar.config(command=alternar_estado_cliente)
     entrada_busqueda.bind("<Return>", lambda e: buscar())
 
+
 def ventana_ver_asistencias(padre):
     ventana = tk.Toplevel(padre)
     ventana.title("Administración - Ver Asistencias")
-    ventana.geometry("780x520")
+    ventana.geometry("800x550")
+
+    configurar_teclado_rapido(ventana, funcion_escape=ventana.destroy)
 
     tk.Label(ventana, text="Usuario:").grid(row=0, column=0, padx=6, pady=6)
     entrada_usuario_busq = tk.Entry(ventana, width=18)
-    entrada_usuario_busq.grid(row=0, column=1)
+    entrada_usuario_busq.grid(row=0, column=1, padx=6, pady=6)
 
     tk.Label(ventana, text="Fecha (YYYY-MM-DD):").grid(row=0, column=2, padx=6, pady=6)
     entrada_fecha = tk.Entry(ventana, width=14)
-    entrada_fecha.grid(row=0, column=3)
+    entrada_fecha.grid(row=0, column=3, padx=6, pady=6)
 
-    lista = tk.Listbox(ventana, width=100, height=20)
-    lista.grid(row=1, column=0, columnspan=4, padx=8, pady=8)
+    marco_lista = tk.Frame(ventana)
+    marco_lista.grid(row=1, column=0, columnspan=5, padx=8, pady=8, sticky="nsew")
+
+    lista = tk.Listbox(marco_lista, width=100, height=20)
+    lista.pack(side="left", fill="both", expand=True)
+
+    scrollbar = tk.Scrollbar(marco_lista, orient="vertical", command=lista.yview)
+    scrollbar.pack(side="right", fill="y")
+    lista.config(yscrollcommand=scrollbar.set)
+
+    etiqueta_contador = tk.Label(ventana, text="0 registros encontrados")
+    etiqueta_contador.grid(row=2, column=0, columnspan=3, padx=8, pady=4, sticky="w")
 
     def cargar_asistencia():
         lista.delete(0, tk.END)
-        usuario_like = "%" + (entrada_usuario_busq.get().strip() if entrada_usuario_busq.get() else "") + "%"
-        fecha_txt = entrada_fecha.get().strip() if entrada_fecha.get() else ""
+        usuario_like = f"%{entrada_usuario_busq.get().strip()}%"
+        fecha_txt = entrada_fecha.get().strip()
 
         con = sqlite3.connect("empresa.db")
         cur = con.cursor()
 
-        if fecha_txt != "":
-            cur.execute(
-                "SELECT usuario, accion, fecha_hora FROM asistencia "
-                "WHERE usuario LIKE ? AND date(fecha_hora)=date(?) "
-                "ORDER BY id_asistencia DESC",
-                (usuario_like, fecha_txt)
-            )
-        else:
-            cur.execute(
-                "SELECT usuario, accion, fecha_hora FROM asistencia "
-                "WHERE usuario LIKE ? "
-                "ORDER BY id_asistencia DESC",
-                (usuario_like,)
-            )
+        try:
+            if fecha_txt:
+                cur.execute(
+                    "SELECT usuario, accion, fecha_hora FROM asistencia "
+                    "WHERE usuario LIKE ? AND fecha_hora LIKE ? "
+                    "ORDER BY id_asistencia DESC",
+                    (usuario_like, f"{fecha_txt}%")
+                )
+            else:
+                cur.execute(
+                    "SELECT usuario, accion, fecha_hora FROM asistencia "
+                    "WHERE usuario LIKE ? "
+                    "ORDER BY id_asistencia DESC",
+                    (usuario_like,)
+                )
 
-        filas = cur.fetchall()
-        for fila in filas:
-            usuario, accion, fecha = fila
-            lista.insert(tk.END, f"{fecha} | {usuario} | {accion}")
+            filas = cur.fetchall()
 
-        con.close()
+            if not filas:
+                lista.insert(tk.END, "No se encontraron registros")
+            else:
+                for usuario, accion, fecha in filas:
+                    lista.insert(tk.END, f"{fecha} | {usuario} | {accion}")
 
-    tk.Button(ventana, text="Cargar", command=cargar_asistencia).grid(row=0, column=4, padx=6)
+            etiqueta_contador.config(text=f"{len(filas)} registros encontrados")
+
+        except sqlite3.Error as e:
+            lista.insert(tk.END, f"Error en base de datos: {e}")
+        finally:
+            con.close()
+
+    boton_cargar = crear_boton_con_teclado(
+        ventana,
+        "Cargar",
+        cargar_asistencia,
+        0,
+        [4, 1]
+    )
+
+    configurar_teclado_rapido(entrada_usuario_busq, funcion_enter=cargar_asistencia)
+    configurar_teclado_rapido(entrada_fecha, funcion_enter=cargar_asistencia)
+
+    def limpiar_busqueda():
+        entrada_usuario_busq.delete(0, tk.END)
+        entrada_fecha.delete(0, tk.END)
+        cargar_asistencia()
+        entrada_usuario_busq.focus()
+
+    boton_limpiar = tk.Button(ventana, text="Limpiar", command=limpiar_busqueda, width=12)
+    boton_limpiar.grid(row=0, column=5, padx=6, pady=6)
+    configurar_teclado_rapido(boton_limpiar, funcion_enter=limpiar_busqueda)
+
+    # Carga inicial
     cargar_asistencia()
+    entrada_usuario_busq.focus()
 
+    # Configurar expansión
+    ventana.grid_rowconfigure(1, weight=1)
+    ventana.grid_columnconfigure(0, weight=1)
 
 def ventana_marcar_asistencia(padre):
     ventana = tk.Toplevel(padre)
     ventana.title("Marcar Asistencia")
-    ventana.geometry("420x220")
+    ventana.geometry("450x280")
 
-    tk.Label(ventana, text="Usuario:").grid(row=0, column=0, padx=6, pady=6)
-    entrada_user = tk.Entry(ventana, width=22)
-    entrada_user.grid(row=0, column=1)
+    configurar_teclado_rapido(ventana, funcion_escape=ventana.destroy)
 
-    tk.Label(ventana, text="Contraseña:").grid(row=1, column=0, padx=6, pady=6)
-    entrada_pwd = tk.Entry(ventana, width=22, show='*')
-    entrada_pwd.grid(row=1, column=1)
+    tk.Label(ventana, text="Registro de Asistencia", font=("Arial", 14, "bold")).grid(
+        row=0, column=0, columnspan=2, pady=15
+    )
+
+    tk.Label(ventana, text="Usuario:", font=("Arial", 12)).grid(row=1, column=0, padx=8, pady=8, sticky="e")
+    entrada_user = tk.Entry(ventana, font=("Arial", 12), width=20)
+    entrada_user.grid(row=1, column=1, padx=8, pady=8, sticky="w")
+
+    tk.Label(ventana, text="Contraseña:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=8, sticky="e")
+    entrada_pwd = tk.Entry(ventana, font=("Arial", 12), width=20, show='*')
+    entrada_pwd.grid(row=2, column=1, padx=8, pady=8, sticky="w")
 
     def marcar(accion):
         u = entrada_user.get().strip()
         p = entrada_pwd.get().strip()
 
-        if u == "" or p == "":
+        if not u or not p:
             messagebox.showwarning("Validación", "Usuario y contraseña requeridos")
+            entrada_user.focus()
             return
 
         con = sqlite3.connect("empresa.db")
         cur = con.cursor()
-        cur.execute("SELECT 1 FROM usuarios WHERE usuario=? AND contraseña=?", (u, p))
-        ok = cur.fetchone() is not None
+        cur.execute("SELECT nombre FROM usuarios WHERE usuario=? AND contraseña=?", (u, p))
+        resultado = cur.fetchone()
 
-        if not ok:
+        if not resultado:
             con.close()
             messagebox.showerror("Asistencia", "Credenciales inválidas")
+            entrada_pwd.delete(0, tk.END)
+            entrada_pwd.focus()
             return
 
+        nombre_usuario = resultado[0]
         from datetime import datetime
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         cur.execute("INSERT INTO asistencia (usuario, accion, fecha_hora) VALUES (?,?,?)", (u, accion, ts))
         con.commit()
         con.close()
-        messagebox.showinfo("Asistencia", accion.capitalize() + " registrada: " + ts)
 
-    tk.Button(ventana, text="Marcar ENTRADA", width=18, command=lambda: marcar('entrada')).grid(row=2, column=0, padx=6, pady=10)
-    tk.Button(ventana, text="Marcar SALIDA",  width=18, command=lambda: marcar('salida')).grid(row=2, column=1, padx=6, pady=10)
+        messagebox.showinfo(
+            "Asistencia Registrada",
+            f"{accion.capitalize()} registrada para:\n"
+            f"Usuario: {nombre_usuario}\n"
+            f"Fecha/Hora: {ts}"
+        )
 
+        entrada_pwd.delete(0, tk.END)
+        entrada_user.focus()
 
-# =============================
-# Inventario (Proveedores / Productos / Compras)
-# =============================
+    marco_botones = tk.Frame(ventana)
+    marco_botones.grid(row=3, column=0, columnspan=2, pady=20)
+
+    boton_entrada = tk.Button(
+        marco_botones,
+        text=" Marcar ENTRADA",
+        command=lambda: marcar('entrada'),
+        font=("Arial", 12),
+        bg="#4CAF50",
+        fg="white",
+        width=16
+    )
+    boton_entrada.grid(row=0, column=0, padx=5)
+    configurar_teclado_rapido(boton_entrada, funcion_enter=lambda: marcar('entrada'))
+
+    boton_salida = tk.Button(
+        marco_botones,
+        text=" Marcar SALIDA",
+        command=lambda: marcar('salida'),
+        font=("Arial", 12),
+        bg="#2196F3",
+        fg="white",
+        width=16
+    )
+    boton_salida.grid(row=0, column=1, padx=5)
+    configurar_teclado_rapido(boton_salida, funcion_enter=lambda: marcar('salida'))
+
+    navegar_con_enter(entrada_user, entrada_pwd)
+
+    configurar_teclado_rapido(entrada_pwd, funcion_enter=lambda: marcar('entrada'))
+
+    tk.Label(ventana, text="💡 ENTER en contraseña marca ENTRADA • ESC para salir",
+             font=("Arial", 9), fg="gray").grid(row=4, column=0, columnspan=2, pady=5)
+
+    entrada_user.focus()
 
 def ventana_inventario(padre):
     ventana = tk.Toplevel(padre)
