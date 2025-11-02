@@ -187,7 +187,6 @@ def ventana_crear_clientes(padre):
         entrada.grid(row=i, column=1, padx=8, pady=6, sticky="w")
         entradas[nombre] = entrada
 
-        # Configurar navegación con ENTER
         if entrada_anterior:
             navegar_con_enter(entrada_anterior, entrada)
         entrada_anterior = entrada
@@ -1027,14 +1026,14 @@ def ventana_ver_compras(padre):
         lista.delete(0, tk.END)
         con = sqlite3.connect("empresa.db")
         cur = con.cursor()
-        # Traemos compras sin JOIN; luego resolvemos nombres con SELECT simples
+
         cur.execute("""
             SELECT id_compra, numero_factura, proveedor_id, producto_id, cantidad, precio_total, IFNULL(fecha_hora,'')
             FROM compras
             ORDER BY id_compra DESC
         """)
         filas = cur.fetchall()
-        # Resolver nombres/códigos con SELECT simples
+
         for (idc, fac, prov_id, prod_id, cant, total, fecha) in filas:
             # proveedor
             cur.execute("SELECT IFNULL(nombre,'') FROM proveedores WHERE id_proveedor=?", (prov_id,))
@@ -1076,7 +1075,6 @@ def ventana_ver_inventario(padre):
         lista.delete(0, tk.END)
         con = sqlite3.connect("empresa.db")
         cur = con.cursor()
-        # Traemos productos; el costo promedio se calcula con dos consultas simples por producto (SUM)
         cur.execute("SELECT id_producto, IFNULL(codigo,''), COALESCE(stock,0) FROM productos ORDER BY codigo")
         productos = cur.fetchall()
         total_items = 0
@@ -1209,6 +1207,160 @@ def ventana_listar_ordenes(padre):
     tk.Button(ventana, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
     cargar()
 
+def ventana_crear_usuario(padre):
+    ventana = tk.Toplevel(padre)
+    ventana.title("Crear nuevo usuario")
+    ventana.geometry("500x450")
+
+    configurar_teclado_rapido(ventana, funcion_escape=ventana.destroy)
+    tk.Label(ventana, text="Crear nuevo usuario", font=("Arial", 16, "bold")).pack(pady=20)
+    marco_campos = tk.Frame(ventana)
+    marco_campos.pack(pady=10, padx=20, fill="x")
+
+    tk.Label(marco_campos, text="Nombre Completo:", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=8,
+                                                                             sticky="e")
+    entrada_nombre = tk.Entry(marco_campos, font=("Arial", 12), width=25)
+    entrada_nombre.grid(row=0, column=1, padx=5, pady=8, sticky="w")
+
+    tk.Label(marco_campos, text="Usuario:", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=8, sticky="e")
+    entrada_usuario = tk.Entry(marco_campos, font=("Arial", 12), width=25)
+    entrada_usuario.grid(row=1, column=1, padx=5, pady=8, sticky="w")
+
+    tk.Label(marco_campos, text="Contraseña:", font=("Arial", 12)).grid(row=2, column=0, padx=5, pady=8, sticky="e")
+    entrada_contraseña = tk.Entry(marco_campos, font=("Arial", 12), width=25, show="•")
+    entrada_contraseña.grid(row=2, column=1, padx=5, pady=8, sticky="w")
+
+    tk.Label(marco_campos, text="Confirmar Contraseña:", font=("Arial", 12)).grid(row=3, column=0, padx=5, pady=8,
+                                                                                  sticky="e")
+    entrada_confirmar = tk.Entry(marco_campos, font=("Arial", 12), width=25, show="•")
+    entrada_confirmar.grid(row=3, column=1, padx=5, pady=8, sticky="w")
+
+    tk.Label(marco_campos, text="Rol:", font=("Arial", 12)).grid(row=4, column=0, padx=5, pady=8, sticky="e")
+
+    combo_rol = tk.StringVar(value="tecnico")
+    opciones_rol =  tk.OptionMenu(marco_campos, combo_rol, "administrador", "cobrador", "tecnico")
+    opciones_rol.config(font=("Arial", 12), width=22)
+    opciones_rol.grid(row=4, column=1, padx=5, pady=8, sticky="w")
+
+    def guardar_usuario():
+        nombre = entrada_nombre.get().strip()
+        usuario = entrada_usuario.get().strip()
+        contraseña = entrada_contraseña.get().strip()
+        confirmar = entrada_confirmar.get().strip()
+        rol = combo_rol.get()
+
+        if not  nombre:
+            messagebox.showwarning("Validación", "El nombre completo es obligatorio")
+            entrada_nombre.focus()
+            return
+        if not usuario:
+            messagebox.showwarning("Validación", "El usuario es obligatorio")
+            return
+        if not contraseña:
+            messagebox.showwarning("Validación", "La contraseña es obligatoria")
+            return
+        if contraseña != confirmar:
+            messagebox.showwarning("Validación", "Las contraseñas no coinciden")
+            entrada_contraseña.delete(0, tk.END)
+            entrada_confirmar.delete(0, tk.END)
+            entrada_contraseña.focus()
+            return
+        if len(contraseña)<4:
+            messagebox.showwarning("Validación", "La contraseña debe tener al menos 4 caracteres")
+            entrada_contraseña.focus()
+            return
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+        cur.execute("SELECT COUNT (*) FROM usuarios WHERE usuario = ?", (usuario,))
+        existe =  cur.fetchone()[0]> 0
+
+        if existe:
+            messagebox.showwarning("Error", f"El usuario {usuario} ya existe")
+            entrada_usuario.delete(0, tk.END)
+            entrada_usuario.focus()
+            con.close()
+            return
+
+        try:
+            cur.execute(
+                "INSERT INTO usuarios (nombre, usuario, contraseña, rol) VALUES (?,?,?,?)",
+                (nombre, usuario, contraseña, rol)
+            )
+            con.commit()
+            messagebox.showinfo("Éxito", f"Usuarios '{usuario}' creado correctamente\nRol: {rol}")
+            limpiar_campos()
+        except sqlite3.Error as e:
+            messagebox.showerror("Error", f"Error al crear usuario {e}")
+        finally:
+            con.close()
+
+    def limpiar_campos():
+        entrada_nombre.delete(0, tk.END)
+        entrada_usuario.delete(0, tk.END)
+        entrada_contraseña.delete(0, tk.END)
+        entrada_confirmar.delete(0, tk.END)
+        combo_rol.set("tecnico")
+        entrada_nombre.focus()
+
+    marco_botones = tk.Frame(ventana)
+    marco_botones.pack(pady=20)
+
+    boton_guardar = crear_boton_con_teclado(
+        marco_botones,
+        "Guardar Usuario",
+        guardar_usuario,
+        0,
+        [0,1],
+        "#4CAF50"
+    )
+    boton_limpiar= tk.Button(
+        marco_botones,
+        text="Limpiar Campos",
+        command= limpiar_campos,
+        font=("Arial", 12),
+        bg= "#FF9800",
+        fg="white",
+        width=15
+    )
+    boton_limpiar.grid(row=0, column=1, pady=10)
+    configurar_teclado_rapido(boton_limpiar, funcion_enter=limpiar_campos)
+
+    boton_cerrar= tk.Button(
+        marco_botones,
+        text="Cerrar",
+        command=ventana.destroy,
+        font=("Arial", 12),
+        bg="#f44336",
+        fg="white",
+        width=12
+    )
+    boton_cerrar.grid(row=0, column=2, padx=10)
+    configurar_teclado_rapido(boton_cerrar, funcion_enter=ventana.destroy)
+
+    navegar_con_enter(entrada_nombre, entrada_usuario)
+    navegar_con_enter(entrada_usuario, entrada_contraseña)
+    navegar_con_enter(entrada_contraseña, entrada_confirmar)
+
+    funcion_guardar_validado = validar_y_ejecutar(
+        [entrada_nombre, entrada_usuario, entrada_contraseña, entrada_confirmar],
+        guardar_usuario
+    )
+    configurar_teclado_rapido(entrada_confirmar, funcion_enter=funcion_guardar_validado)
+    configurar_teclado_rapido(opciones_rol, funcion_enter=funcion_guardar_validado)
+
+    tk.Label(
+        ventana,
+        text="Usa ENTER para navegar, ESC para salir\nContraseña minima de 4 caracteres",
+        font=("Arial", 9),
+        fg="gray",
+        justify="center").pack(pady=10)
+
+    entrada_nombre.focus()
+
+
+
+
 def abrir_panel_principal(nombre, rol):
     ventana = tk.Tk()
     ventana.title("Panel - " + rol.capitalize())
@@ -1246,7 +1398,7 @@ def abrir_panel_principal(nombre, rol):
             ("Material Instalado", None),
             ("Control de Cobros", None),
             ("Facturar", None),
-            ("Crear Usuarios", None),
+            ("Crear Usuarios", lambda: ventana_crear_usuario(ventana)),
         ]
     elif rol == "cobrador":
         botones = [
