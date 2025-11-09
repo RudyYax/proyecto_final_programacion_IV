@@ -72,13 +72,20 @@ def crear_tablas():
         nit VARCHAR(50),
         telefono VARCHAR(50),
         direccion VARCHAR(50),
-        estado VARCHAR(50) DEFAULT 'ACTIVO'
+        estado VARCHAR(50) DEFAULT 'ACTIVO',
+        por_cobrar BOOLEAN DEFAULT 1,
+        fecha_ultimo_cobro VARCHAR (50)
     )
     """)
     try:
-        cur.execute("SELECT estado FROM clientes LIMIT 1")
+        cur.execute("SELECT por_cobrar FROM clientes LIMIT 1")
     except sqlite3.OperationalError:
-        cur.execute("ALTER TABLE clientes ADD COLUMN estado VARCHAR(50) DEFAULT 'ACTIVO'")
+        cur.execute("ALTER TABLE clientes ADD COLUMN por_cobrar BOOLEAN DEFAULT 1")
+
+    try:
+        cur.execute("SELECT fecha_ultimo_cobro FROM clientes LIMIT 1")
+    except sqlite3.OperationalError:
+        cur.execute("ALTER TABLE clientes ADD COLUMN fecha_ultimo_cobro VARCHAR(50)")
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS asistencia (
@@ -126,6 +133,19 @@ def crear_tablas():
         fecha_creacion VARCHAR(50)
     )
     """)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS material_instalado ( 
+    id_instalacion INTEGER PRIMARY KEY AUTOINCREMENT, 
+    cliente_id INTEGER NOT NULL, 
+    producto_id INTEGER NOT NULL, 
+    cantidad INTEGER NOT NULL, 
+    tecnico VARCHAR(50), 
+    fecha_instalacion VARCHAR(50), 
+    observaciones TEXT, 
+    FOREIGN KEY (cliente_id) REFERENCES clientes (id_cliente),
+    FOREIGN KEY (producto_id) REFERENCES productos (id_producto)
+    )
+    """)
     cur.execute("SELECT COUNT(*) FROM usuarios")
     total_usuarios = cur.fetchone()[0]
     if total_usuarios == 0:
@@ -166,8 +186,6 @@ def ventana_crear_clientes(padre):
     ventana.geometry("540x300")
 
     configurar_teclado_rapido(ventana, funcion_escape=ventana.destroy)
-
-    # Crear campos con navegación por ENTER
     campos = [
         ("Nombre:", "entrada_nombre"),
         ("NIT:", "entrada_nit"),
@@ -204,8 +222,8 @@ def ventana_crear_clientes(padre):
 
         con = sqlite3.connect("empresa.db")
         cur = con.cursor()
-        cur.execute("INSERT INTO clientes (nombre, nit, telefono, direccion, estado) VALUES (?,?,?,?,?)",
-                    (nom, nit if nit else None, tel if tel else None, dire if dire else None, "ACTIVO"))
+        cur.execute("INSERT INTO clientes (nombre, nit, telefono, direccion, estado, por_cobrar) VALUES (?,?,?,?,?,?)",
+                    (nom, nit if nit else None, tel if tel else None, dire if dire else None, "ACTIVO", 1))
         con.commit()
         con.close()
 
@@ -247,7 +265,6 @@ def obtener_cliente_por_id(id_cliente):
     con.close()
     return fila
 
-
 def mostrar_cliente_por_id(padre, id_cliente):
     fila = obtener_cliente_por_id(id_cliente)
     if not fila:
@@ -263,7 +280,6 @@ def mostrar_cliente_por_id(padre, id_cliente):
         f"Estado: {estado}"
     )
     messagebox.showinfo("Datos del Cliente", msg, parent=padre)
-
 
 def ventana_gestion_clientes(padre):
     ventana = tk.Toplevel(padre)
@@ -454,7 +470,6 @@ def ventana_gestion_clientes(padre):
     boton_alternar.config(command=alternar_estado_cliente)
     entrada_busqueda.bind("<Return>", lambda e: buscar())
 
-
 def ventana_ver_asistencias(padre):
     ventana = tk.Toplevel(padre)
     ventana.title("Administración - Ver Asistencias")
@@ -529,7 +544,6 @@ def ventana_ver_asistencias(padre):
         0,
         [4, 1]
     )
-
     configurar_teclado_rapido(entrada_usuario_busq, funcion_enter=cargar_asistencia)
     configurar_teclado_rapido(entrada_fecha, funcion_enter=cargar_asistencia)
 
@@ -543,11 +557,9 @@ def ventana_ver_asistencias(padre):
     boton_limpiar.grid(row=0, column=5, padx=6, pady=6)
     configurar_teclado_rapido(boton_limpiar, funcion_enter=limpiar_busqueda)
 
-    # Carga inicial
     cargar_asistencia()
     entrada_usuario_busq.focus()
 
-    # Configurar expansión
     ventana.grid_rowconfigure(1, weight=1)
     ventana.grid_columnconfigure(0, weight=1)
 
@@ -658,7 +670,6 @@ def ventana_inventario(padre):
     tk.Button(ventana, text="Ver Compras Realizadas", font=("Arial", 12), width=22, command=lambda: ventana_ver_compras(ventana)).pack(pady=6)
     tk.Button(ventana, text="Inventario general", font=("Arial", 12), width=22, command=lambda: ventana_ver_inventario(ventana)).pack(pady=6)
 
-
 def ventana_proveedores(padre):
     ventana = tk.Toplevel(padre)
     ventana.title("Inventario - Proveedores")
@@ -671,7 +682,6 @@ def ventana_proveedores(padre):
 
     tk.Button(ventana, text="Mostrar Proveedores", font=("Arial", 12), width=22,
               command=lambda: ventana_listar_proveedores(ventana)).pack(pady=6)
-
 
 def ventana_listar_proveedores(padre):
     ventana = tk.Toplevel(padre)
@@ -708,7 +718,6 @@ def ventana_listar_proveedores(padre):
 
     tk.Button(ventana, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
     cargar()
-
 
 def ventana_crear_proveedor(padre):
     ventana = tk.Toplevel(padre)
@@ -758,11 +767,10 @@ def ventana_crear_proveedor(padre):
     tk.Button(ventana, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
               command=guardar_proveedor, width=18).grid(row=4, column=0, columnspan=2, pady=16)
 
-
 def ventana_productos(padre):
     ventana = tk.Toplevel(padre)
     ventana.title("Inventario - Productos")
-    ventana.geometry("420x220")
+    ventana.geometry("420x280")
 
     tk.Label(ventana, text="Productos", font=("Arial", 14, "bold")).pack(pady=10)
 
@@ -771,7 +779,8 @@ def ventana_productos(padre):
 
     tk.Button(ventana, text="Mostrar Productos", font=("Arial", 12), width=22,
               command=lambda: ventana_listar_productos(ventana)).pack(pady=6)
-
+    tk.Button(ventana, text="Eliminar Productos", font=("Arial", 12), width=22,
+              command=lambda: ventana_eliminar_productos(ventana), bg="#f44336", fg="white").pack(pady=6)
 
 def ventana_listar_productos(padre):
     ventana = tk.Toplevel(padre)
@@ -809,7 +818,6 @@ def ventana_listar_productos(padre):
     tk.Button(ventana, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
     cargar()
 
-
 def ventana_crear_productos(padre):
     ventana = tk.Toplevel(padre)
     ventana.title("Crear Producto")
@@ -823,7 +831,7 @@ def ventana_crear_productos(padre):
     entrada_descripcion = tk.Entry(ventana, font=("Arial", 12), width=30)
     entrada_descripcion.grid(row=1, column=1, padx=8, pady=6, sticky="w")
 
-    tk.Label(ventana, text="Precio:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=6, sticky="e")
+    tk.Label(ventana, text="Precio unit o por mt:", font=("Arial", 12)).grid(row=2, column=0, padx=8, pady=6, sticky="e")
     entrada_precio = tk.Entry(ventana, font=("Arial", 12), width=30)
     entrada_precio.grid(row=2, column=1, padx=8, pady=6, sticky="w")
 
@@ -848,7 +856,6 @@ def ventana_crear_productos(padre):
                     (cod, des if des else None, prec if prec else None))
         con.commit()
         con.close()
-
         messagebox.showinfo("Producto", "Producto creado correctamente")
 
         entrada_codigo.delete(0, tk.END)
@@ -858,11 +865,118 @@ def ventana_crear_productos(padre):
     tk.Button(ventana, text="Guardar", font=("Arial", 12), bg="#4CAF50", fg="white",
               command=guardar_producto, width=18).grid(row=4, column=0, columnspan=2, pady=16)
 
+def ventana_eliminar_productos(padre):
+    ventana = tk.Toplevel(padre)
+    ventana.title("Eliminar Productos")
+    ventana.geometry("700x500")
+
+    tk.Label(ventana, text="Eliminar Productos", font=("Arial", 14, "bold")).pack(pady=10)
+
+    tk.Label(ventana, text="Buscar producto (código o nombre):", font=("Arial", 12)).pack(pady=5)
+    entrada_busqueda = tk.Entry(ventana, font=("Arial", 12), width=30)
+    entrada_busqueda.pack(pady=5)
+
+    lista = tk.Listbox(ventana, width=80, height=15)
+    lista.pack(padx=20, pady=10, fill="both", expand=True)
+
+    scrollbar = tk.Scrollbar(lista)
+    scrollbar.pack(side="right", fill="y")
+    lista.config(yscrollcommand=scrollbar.set)
+    scrollbar.config(command=lista.yview)
+
+    productos_encontrados = []
+
+    def buscar_productos():
+        nonlocal productos_encontrados
+        lista.delete(0, tk.END)
+        busqueda = entrada_busqueda.get().strip()
+
+        if not busqueda:
+            messagebox.showwarning("Búsqueda", "Ingresa un código o nombre para buscar")
+            return
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+
+        if busqueda.isdigit():
+            cur.execute("""
+                SELECT id_producto, codigo, descripcion, precio, COALESCE(stock,0) 
+                FROM productos 
+                WHERE id_producto = ? OR codigo LIKE ? OR descripcion LIKE ?
+            """, (int(busqueda), f"%{busqueda}%", f"%{busqueda}%"))
+        else:
+            cur.execute("""
+                SELECT id_producto, codigo, descripcion, precio, COALESCE(stock,0) 
+                FROM productos 
+                WHERE codigo LIKE ? OR descripcion LIKE ?
+            """, (f"%{busqueda}%", f"%{busqueda}%"))
+
+        productos_encontrados = cur.fetchall()
+        con.close()
+
+        if not productos_encontrados:
+            lista.insert(tk.END, "No se encontraron productos")
+        else:
+            for id_prod, codigo, descripcion, precio, stock in productos_encontrados:
+                lista.insert(tk.END, f"ID:{id_prod} | COD:{codigo} | {descripcion} | Q{precio} | Stock:{stock}")
+
+    def eliminar_seleccionado():
+        seleccion = lista.curselection()
+        if not seleccion:
+            messagebox.showwarning("Selección", "Selecciona un producto de la lista")
+            return
+
+        producto = productos_encontrados[seleccion[0]]
+        id_prod, codigo, descripcion, precio, stock = producto
+
+        if stock > 0:
+            messagebox.showwarning("Stock",
+                                   f"No se puede eliminar '{descripcion}'\nTodavía tiene {stock} unidades en stock\nPrimero debe vender o ajustar el inventario")
+            return
+
+        confirmar = messagebox.askyesno(
+            "Confirmar Eliminación",
+            f"¿Estás seguro de eliminar este producto?\n\n"
+            f"Código: {codigo}\n"
+            f"Descripción: {descripcion}\n"
+            f"Precio: Q{precio}"
+        )
+
+        if not confirmar:
+            return
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+
+        try:
+            cur.execute("DELETE FROM productos WHERE id_producto = ?", (id_prod,))
+            con.commit()
+            messagebox.showinfo("Éxito", f"Producto '{descripcion}' eliminado correctamente")
+            buscar_productos()
+        except sqlite3.Error as e:
+            messagebox.showerror("Error", f"No se pudo eliminar el producto: {e}")
+        finally:
+            con.close()
+
+    marco_botones = tk.Frame(ventana)
+    marco_botones.pack(pady=10)
+
+    tk.Button(marco_botones, text=" Buscar", command=buscar_productos,
+              font=("Arial", 12), bg="#2196F3", fg="white").pack(side="left", padx=5)
+
+    tk.Button(marco_botones, text=" Eliminar Seleccionado", command=eliminar_seleccionado,
+              font=("Arial", 12), bg="#f44336", fg="white").pack(side="left", padx=5)
+
+    tk.Button(marco_botones, text="Cerrar", command=ventana.destroy,
+              font=("Arial", 12)).pack(side="left", padx=5)
+
+    entrada_busqueda.bind("<Return>", lambda e: buscar_productos())
+    entrada_busqueda.focus()
 
 def ventana_registrar_compra(padre):
     ventana = tk.Toplevel(padre)
     ventana.title("Registrar Compra")
-    ventana.geometry("600x500")
+    ventana.geometry("600x550")
     proveedor_id_var = tk.IntVar(value=0)
 
     tk.Label(ventana, text="No. Factura:", font=("Arial", 12)).grid(row=0, column=0, padx=8, pady=6, sticky="e")
@@ -1079,7 +1193,7 @@ def ventana_ver_inventario(padre):
         productos = cur.fetchall()
         total_items = 0
         for (pid, codigo, stock) in productos:
-            # SUM simples
+
             cur.execute("SELECT COALESCE(SUM(cantidad),0), COALESCE(SUM(precio_total),0.0) FROM compras WHERE producto_id=?", (pid,))
             sumas = cur.fetchone()
             suma_cant, suma_total = sumas if sumas else (0, 0.0)
@@ -1155,7 +1269,6 @@ def ventana_crear_orden(padre):
         )
         con.commit()
         con.close()
-
         messagebox.showinfo("Órdenes", "Orden creada correctamente.", parent=ventana)
         ventana.destroy()
 
@@ -1163,7 +1276,6 @@ def ventana_crear_orden(padre):
               command=guardar_orden).grid(row=3, column=1, pady=16)
     tk.Button(ventana, text="Cancelar", font=("Arial", 12), width=12,
               command=ventana.destroy).grid(row=3, column=2, padx=6, pady=16)
-
 
 def ventana_listar_ordenes(padre):
     ventana = tk.Toplevel(padre)
@@ -1180,8 +1292,6 @@ def ventana_listar_ordenes(padre):
     lista.config(yscrollcommand=barra.set)
 
     etiqueta_total = tk.Label(ventana, text="0 órdenes")
-    etiqueta_total.grid(row=2, column=0, padx=8, pady=4, sticky="w")
-
     def cargar():
         lista.delete(0, tk.END)
         con = sqlite3.connect("empresa.db")
@@ -1206,6 +1316,315 @@ def ventana_listar_ordenes(padre):
 
     tk.Button(ventana, text="Actualizar", command=cargar).grid(row=0, column=1, padx=8)
     cargar()
+    etiqueta_total.grid(row=2, column=0, padx=8, pady=4, sticky="w")
+
+def ventana_reportar_material(padre):
+    ventana = tk.Toplevel(padre)
+    ventana.title("Reportar Material Usado")
+    ventana.geometry("500x400")
+
+    tk.Label(ventana, text="Reportar Material de Instalacion", font=("Arial", 14, "bold")).pack(pady=15)
+
+    tk.Label(ventana, text="ID Cliente:", font=("Arial", 12)).pack(pady=5)
+    entrada_cliente_id = tk.Entry(ventana, font=("Arial", 12), width=20)
+    entrada_cliente_id.pack(pady=5)
+
+    tk.Label(ventana, text="Codigo Producto:", font=("Arial", 12)).pack(pady=5)
+    entrada_producto_cod = tk.Entry(ventana, font=("Arial", 12), width=20)
+    entrada_producto_cod.pack(pady=5)
+
+    tk.Label(ventana, text="Cantidad usada:", font=("Arial", 12)).pack(pady=5)
+    entrada_cantidad = tk.Entry(ventana, font=("Arial", 12), width=10)
+    entrada_cantidad.pack(pady=5)
+
+    tk.Label(ventana, text="Tu nombre:", font=("Arial", 12)).pack(pady=5)
+    entrada_tecnico = tk.Entry(ventana, font=("Arial", 12), width=25)
+    entrada_tecnico.pack(pady=5)
+
+    def reportar():
+        cliente_id = entrada_cliente_id.get().strip()
+        producto_cod = entrada_producto_cod.get().strip()
+        cantidad = entrada_cantidad.get().strip()
+        tecnico = entrada_tecnico.get().strip()
+
+        if not all([cliente_id, producto_cod, cantidad, tecnico]):
+            messagebox.showwarning("Error", "Completa todos los campos")
+            return
+        try:
+            cliente_id = int(cliente_id)
+            cantidad = int(cantidad)
+        except:
+            messagebox.showwarning("Error", "ID Cliente y Cantidad deben ser numeros")
+            return
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+
+        cur.execute("SELECT nombre FROM clientes WHERE id_cliente=?", (cliente_id,))
+        cliente = cur.fetchone()
+        if not cliente:
+            messagebox.showerror("Error", f"No existe cliente con ID {cliente_id}")
+            con.close()
+            return
+
+        cur.execute("SELECT id_producto, descripcion, COALESCE(stock,0) FROM productos WHERE codigo=?", (producto_cod,))
+        producto = cur.fetchone()
+        if not producto:
+            messagebox.showerror("Error", f"No existe producto con codigo {producto_cod}")
+            con.close()
+            return
+        producto_id, descripcion, stock = producto
+
+        if cantidad > stock:
+            messagebox.showerror("Stock", f"No hay suficiente stock. Disponible: {stock}")
+            con.close()
+            return
+
+        from datetime import datetime
+        fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        cur.execute(
+            "INSERT INTO material_instalado (cliente_id, producto_id, cantidad, tecnico, fecha_instalacion) VALUES (?, ?, ?, ?, ?)",
+            (cliente_id, producto_id, cantidad, tecnico, fecha))
+
+        cur.execute("UPDATE productos SET stock = stock - ? WHERE id_producto=?", (cantidad, producto_id))
+
+        con.commit()
+        con.close()
+
+        messagebox.showinfo("Exito", f"Material reportado:\n{descripcion} x{cantidad}\nCliente ID: {cliente_id}")
+
+        entrada_producto_cod.delete(0, tk.END)
+        entrada_cantidad.delete(0, tk.END)
+
+    tk.Button(ventana, text="Reportar Material", command=reportar, font=("Arial", 12), bg="#4CAF50", fg="white",
+              width=20).pack(pady=20)
+
+def ventana_ver_material_instalado(padre):
+    ventana = tk.Toplevel(padre)
+    ventana.title("Material Instalado - Reportes")
+    ventana.geometry("900x500")
+
+    tk.Label(ventana, text="Material Instalado por Tecnicos", font=("Arial", 16, "bold")).pack(pady=15)
+
+    marco_lista = tk.Frame(ventana)
+    marco_lista.pack(fill="both", expand=True, padx=20, pady=10)
+
+    lista = tk.Listbox(marco_lista, font=("Arial", 10), width=110)
+    lista.pack(side="left", fill="both", expand=True)
+
+    scrollbar = tk.Scrollbar(marco_lista, orient="vertical", command=lista.yview)
+    scrollbar.pack(side="right", fill="y")
+    lista.config(yscrollcommand=scrollbar.set)
+
+    def cargar_reportes():
+        lista.delete(0, tk.END)
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+
+        cur.execute("""
+            SELECT m.fecha_instalacion, m.tecnico, c.nombre, p.descripcion, m.cantidad 
+            FROM material_instalado m
+            JOIN clientes c ON m.cliente_id = c.id_cliente
+            JOIN productos p ON m.producto_id = p.id_producto
+            ORDER BY m.fecha_instalacion DESC
+        """)
+
+        reportes = cur.fetchall()
+        con.close()
+
+        if not reportes:
+            lista.insert(tk.END, "No hay reportes de material instalado")
+        else:
+            for fecha, tecnico, cliente, producto, cantidad in reportes:
+                lista.insert(tk.END, f"{fecha} | {tecnico} | {cliente} | {producto} x{cantidad}")
+
+    marco_botones = tk.Frame(ventana)
+    marco_botones.pack(pady=10)
+
+    tk.Button(marco_botones, text="Actualizar", command=cargar_reportes, font=("Arial", 12)).pack(side="left", padx=5)
+
+    tk.Button(marco_botones, text="Cerrar", command=ventana.destroy, font=("Arial", 12), bg="#f44336", fg="white").pack(
+        side="left", padx=5)
+
+    cargar_reportes()
+
+def ventana_clientes_por_cobrar(padre):
+    ventana = tk.Toplevel(padre)
+    ventana.title("Clientes por Cobrar")
+    ventana.geometry("1000x700")
+
+    tk.Label(ventana, text="Seguimiento de Cobros", font=("Arial", 16, "bold")).pack(pady=15)
+
+    def mostrar_estadisticas():
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM clientes WHERE estado='ACTIVO' AND por_cobrar=1")
+        pendientes = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM clientes WHERE estado='ACTIVO' AND por_cobrar=0")
+        cobrados = cur.fetchone()[0]
+
+        cur.execute("SELECT COUNT(*) FROM clientes WHERE estado='ACTIVO'")
+        total = cur.fetchone()[0]
+
+        con.close()
+
+        messagebox.showinfo("Estadisticas",
+                            f"Clientes activos: {total}\nPendientes de cobro: {pendientes}\nYa cobrados: {cobrados}\nProgreso: {cobrados}/{total}")
+
+    marco_principal = tk.Frame(ventana)
+    marco_principal.pack(fill="both", expand=True, padx=20, pady=10)
+
+    marco_controles = tk.Frame(marco_principal)
+    marco_controles.pack(fill="x", pady=10)
+
+    marco_lista = tk.Frame(marco_principal)
+    marco_lista.pack(fill="both", expand=True)
+
+    canvas = tk.Canvas(marco_lista, bg="white")
+    scrollbar = tk.Scrollbar(marco_lista, orient="vertical", command=canvas.yview)
+    scrollable_frame = tk.Frame(canvas, bg="white")
+
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    check_vars = []
+    clientes_data = []
+    label_clientes = []
+
+    def cargar_clientes():
+        for widget in scrollable_frame.winfo_children():
+            widget.destroy()
+        check_vars.clear()
+        clientes_data.clear()
+        label_clientes.clear()
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+
+        cur.execute("""
+            SELECT id_cliente, nombre, telefono, direccion, fecha_ultimo_cobro, por_cobrar
+            FROM clientes 
+            WHERE estado = 'ACTIVO'
+            ORDER BY por_cobrar DESC, nombre ASC
+        """)
+
+        clientes = cur.fetchall()
+        con.close()
+
+        if not clientes:
+            tk.Label(scrollable_frame, text="No hay clientes activos",
+                     font=("Arial", 12), fg="gray", bg="white").pack(pady=20)
+        else:
+            pendientes = 0
+            cobrados = 0
+
+            for i, (id_cliente, nombre, telefono, direccion, fecha_cobro, por_cobrar) in enumerate(clientes):
+                frame_cliente = tk.Frame(scrollable_frame, relief="solid", bd=1, bg="white")
+                frame_cliente.pack(fill="x", padx=10, pady=3)
+
+                var = tk.BooleanVar(value=not por_cobrar)
+                check_vars.append(var)
+                clientes_data.append((id_cliente, por_cobrar))
+
+                check = tk.Checkbutton(frame_cliente, variable=var,
+                                       command=lambda idx=i: toggle_cobrado(idx),
+                                       bg="white")
+                check.pack(side="left", padx=8, pady=8)
+
+                info_text = f"{id_cliente} - {nombre}"
+                if telefono:
+                    info_text += f" | Tel: {telefono}"
+                if direccion:
+                    info_text += f" | {direccion}"
+
+                if por_cobrar:
+                    label = tk.Label(frame_cliente, text=info_text, font=("Arial", 11),
+                                     bg="white", fg="black", anchor="w", justify="left")
+                    pendientes += 1
+                else:
+                    label = tk.Label(frame_cliente, text=info_text, font=("Arial", 11),
+                                     bg="white", fg="gray", anchor="w", justify="left")
+                    label.config(font=("Arial", 11, "overstrike"))
+                    cobrados += 1
+
+                label.pack(side="left", fill="x", expand=True, padx=5, pady=8)
+                label_clientes.append(label)
+
+                tk.Button(frame_cliente, text="Ver", font=("Arial", 9),
+                          command=lambda cid=id_cliente: mostrar_detalle_cliente(cid),
+                          bg="#e0e0e0", relief="flat", width=3).pack(side="right", padx=5)
+
+            if pendientes > 0 and cobrados > 0:
+                separator = tk.Frame(scrollable_frame, height=2, bg="#e0e0e0")
+                separator.pack(fill="x", padx=20, pady=10)
+
+                tk.Label(scrollable_frame, text=f"{cobrados} elementos completados",
+                         font=("Arial", 11, "italic"), fg="gray", bg="white").pack(pady=5)
+
+        ventana.title(f"Clientes por Cobrar ({pendientes} pendientes, {cobrados} cobrados)")
+
+    def toggle_cobrado(index):
+        id_cliente, estado_actual = clientes_data[index]
+        nuevo_estado = not estado_actual
+
+        con = sqlite3.connect("empresa.db")
+        cur = con.cursor()
+
+        from datetime import datetime
+        fecha_cobro = datetime.now().strftime("%Y-%m-%d") if nuevo_estado == 0 else None
+
+        cur.execute("UPDATE clientes SET por_cobrar = ?, fecha_ultimo_cobro = ? WHERE id_cliente = ?",
+                    (nuevo_estado, fecha_cobro, id_cliente))
+
+        con.commit()
+        con.close()
+
+        if nuevo_estado == 0:
+            label_clientes[index].config(fg="gray", font=("Arial", 11, "overstrike"))
+        else:
+            label_clientes[index].config(fg="black", font=("Arial", 11))
+
+        cargar_clientes()
+
+    def mostrar_detalle_cliente(cliente_id):
+        fila = obtener_cliente_por_id(cliente_id)
+        if fila:
+            cid, nombre, nit, tel, dire, estado = fila
+            con = sqlite3.connect("empresa.db")
+            cur = con.cursor()
+            cur.execute("SELECT por_cobrar, fecha_ultimo_cobro FROM clientes WHERE id_cliente=?", (cliente_id,))
+            estado_cobro, fecha_cobro = cur.fetchone()
+            con.close()
+
+            estado_texto = "PENDIENTE de cobro" if estado_cobro else f"COBRADO el {fecha_cobro}"
+
+            mensaje = f"ID: {cid}\nNombre: {nombre}\nTel: {tel}\nDir: {dire}\nEstado: {estado}\nCobro: {estado_texto}"
+            messagebox.showinfo("Detalle Cliente", mensaje)
+
+    tk.Button(marco_controles, text="Actualizar", font=("Arial", 12),
+              command=cargar_clientes).pack(side="left", padx=5)
+
+    tk.Button(marco_controles, text="Estadisticas", font=("Arial", 12),
+              command=mostrar_estadisticas).pack(side="left", padx=5)
+
+    marco_botones = tk.Frame(ventana)
+    marco_botones.pack(pady=10)
+
+    tk.Button(marco_botones, text="Cerrar",
+              command=ventana.destroy, font=("Arial", 12),
+              bg="#f44336", fg="white").pack(side="left", padx=5)
+    cargar_clientes()
 
 def ventana_crear_usuario(padre):
     ventana = tk.Toplevel(padre)
@@ -1358,8 +1777,405 @@ def ventana_crear_usuario(padre):
 
     entrada_nombre.focus()
 
+def ventana_cobros(padre):
+    ventana = tk.Toplevel(padre)
+    ventana.title("Sistema de Cobros")
+    ventana.geometry("600x700")
+    ventana.configure(bg='white')
 
+    cliente_actual = None
+    casillas = []
 
+    tk.Label(ventana, text="SISTEMA DE COBROS", font=("Arial", 14, "bold"), bg='white').pack(pady=10)
+
+    marco_busqueda = tk.Frame(ventana, bg='white')
+    marco_busqueda.pack(pady=10)
+
+    entrada_busqueda = tk.Entry(marco_busqueda, font=("Arial", 12), width=25)
+    entrada_busqueda.pack(side="left", padx=5)
+
+    def buscar_cliente():
+        consulta = entrada_busqueda.get().strip()
+        if not consulta:
+            messagebox.showwarning("Búsqueda", "Ingrese código o nombre")
+            return
+
+        conexion = sqlite3.connect("empresa.db")
+        cursor = conexion.cursor()
+
+        if consulta.isdigit():
+            cursor.execute("SELECT id_cliente, nombre FROM clientes WHERE id_cliente = ? AND estado='ACTIVO'",
+                           (int(consulta),))
+        else:
+            cursor.execute("SELECT id_cliente, nombre FROM clientes WHERE nombre LIKE ? AND estado='ACTIVO'",
+                           (f"%{consulta}%",))
+
+        clientes = cursor.fetchall()
+        conexion.close()
+
+        lista_clientes.delete(0, tk.END)
+        for id_cliente, nombre in clientes:
+            lista_clientes.insert(tk.END, f"{id_cliente} - {nombre}")
+
+    boton_buscar = tk.Button(marco_busqueda, text="Buscar", font=("Arial", 10), command=buscar_cliente, bg="#4CAF50",
+                             fg="white")
+    boton_buscar.pack(side="left", padx=5)
+
+    lista_clientes = tk.Listbox(ventana, height=3, font=("Arial", 10))
+    lista_clientes.pack(pady=5, padx=20, fill="x")
+
+    marco_info = tk.Frame(ventana, bg='#f0f0f0', relief='solid', bd=1)
+    marco_info.pack(pady=10, padx=20, fill="x")
+
+    etiqueta_nombre = tk.Label(marco_info, text="Nombre: ---", font=("Arial", 10), bg='#f0f0f0')
+    etiqueta_nombre.pack(anchor="w", padx=10, pady=2)
+
+    etiqueta_direccion = tk.Label(marco_info, text="Dirección: ---", font=("Arial", 10), bg='#f0f0f0')
+    etiqueta_direccion.pack(anchor="w", padx=10, pady=2)
+
+    etiqueta_ultimo = tk.Label(marco_info, text="Último cobro: ---", font=("Arial", 10), bg='#f0f0f0')
+    etiqueta_ultimo.pack(anchor="w", padx=10, pady=2)
+
+    tk.Label(ventana, text="MESES PENDIENTES", font=("Arial", 11, "bold"), bg='white').pack(pady=5)
+
+    marco_scroll = tk.Frame(ventana, bg='white')
+    marco_scroll.pack(pady=5, padx=20, fill="both", expand=True)
+
+    lienzo = tk.Canvas(marco_scroll, bg='white', height=150)
+    barra_desplazamiento = tk.Scrollbar(marco_scroll, orient="vertical", command=lienzo.yview)
+    marco_meses = tk.Frame(lienzo, bg='white')
+
+    marco_meses.bind("<Configure>", lambda e: lienzo.configure(scrollregion=lienzo.bbox("all")))
+    lienzo.create_window((0, 0), window=marco_meses, anchor="nw")
+    lienzo.configure(yscrollcommand=barra_desplazamiento.set)
+
+    lienzo.pack(side="left", fill="both", expand=True)
+    barra_desplazamiento.pack(side="right", fill="y")
+
+    marco_totales = tk.Frame(ventana, bg='white')
+    marco_totales.pack(pady=10, fill="x")
+
+    tk.Label(marco_totales, text="TOTAL:", font=("Arial", 12, "bold"), bg='white').pack(side="left", padx=10)
+
+    etiqueta_total = tk.Label(marco_totales, text="Q 0.00", font=("Arial", 12, "bold"), bg='white', fg="#2E7D32")
+    etiqueta_total.pack(side="left", padx=10)
+
+    marco_abonar = tk.Frame(ventana, bg='white')
+    marco_abonar.pack(pady=5)
+
+    tk.Label(marco_abonar, text="Abonar la cantidad de:", font=("Arial", 11), bg='white').pack()
+
+    etiqueta_abonar = tk.Label(marco_abonar, text="Q 0.00", font=("Arial", 14, "bold"), bg='white', fg="#D32F2F")
+    etiqueta_abonar.pack()
+
+    marco_botones = tk.Frame(ventana, bg='white')
+    marco_botones.pack(pady=15)
+
+    def seleccionar_cliente(evento):
+        seleccion = lista_clientes.curselection()
+        if not seleccion:
+            return
+
+        texto = lista_clientes.get(seleccion[0])
+        cliente_id = int(texto.split(' - ')[0])
+        nonlocal cliente_actual
+        cliente_actual = cliente_id
+
+        conexion = sqlite3.connect("empresa.db")
+        cursor = conexion.cursor()
+        cursor.execute("SELECT nombre, direccion, fecha_ultimo_cobro FROM clientes WHERE id_cliente=?", (cliente_id,))
+        datos_cliente = cursor.fetchone()
+        conexion.close()
+
+        if datos_cliente:
+            nombre, direccion, ultimo_cobro = datos_cliente
+            etiqueta_nombre.config(text=f"Nombre: {nombre}")
+            etiqueta_direccion.config(text=f"Dirección: {direccion or 'No registrada'}")
+            etiqueta_ultimo.config(text=f"Último cobro: {ultimo_cobro or 'Nunca'}")
+
+            cargar_meses_pendientes(ultimo_cobro)
+
+    def cargar_meses_pendientes(ultimo_pago):
+        for widget in marco_meses.winfo_children():
+            widget.destroy()
+
+        nonlocal casillas
+        casillas = []
+
+        from datetime import datetime
+
+        nombres_meses = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+                         "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
+
+        hoy = datetime.now()
+        mes_actual = hoy.month
+        año_actual = hoy.year
+
+        if not ultimo_pago:
+            nombre_mes = f"{nombres_meses[mes_actual - 1]} {año_actual}"
+
+            marco_mes = tk.Frame(marco_meses, bg='white')
+            marco_mes.pack(fill="x", pady=1)
+
+            variable = tk.BooleanVar()
+            casillas.append(variable)
+
+            casilla = tk.Checkbutton(marco_mes, variable=variable, command=calcular_total, bg='white',
+                                     font=("Arial", 9))
+            casilla.pack(side="left", padx=5)
+
+            tk.Label(marco_mes, text=nombre_mes, font=("Arial", 9), bg='white', width=20, anchor='w').pack(side="left",
+                                                                                                           padx=5)
+            tk.Label(marco_mes, text="Q 75.00", font=("Arial", 9), bg='white').pack(side="right", padx=10)
+
+        else:
+            try:
+                fecha_pago = datetime.strptime(ultimo_pago, "%Y-%m-%d %H:%M:%S")
+                mes_ultimo_pago = fecha_pago.month
+                año_ultimo_pago = fecha_pago.year
+
+                total_meses_debe = ((año_actual - año_ultimo_pago) * 12) + (mes_actual - mes_ultimo_pago)
+
+                mes_mostrar = mes_ultimo_pago + 1
+                año_mostrar = año_ultimo_pago
+
+                for i in range(total_meses_debe):
+                    if mes_mostrar > 12:
+                        mes_mostrar = 1
+                        año_mostrar += 1
+
+                    nombre_mes = f"{nombres_meses[mes_mostrar - 1]} {año_mostrar}"
+
+                    marco_mes = tk.Frame(marco_meses, bg='white')
+                    marco_mes.pack(fill="x", pady=1)
+
+                    variable = tk.BooleanVar()
+                    casillas.append(variable)
+
+                    casilla = tk.Checkbutton(marco_mes, variable=variable, command=calcular_total, bg='white',
+                                             font=("Arial", 9))
+                    casilla.pack(side="left", padx=5)
+
+                    tk.Label(marco_mes, text=nombre_mes, font=("Arial", 9), bg='white', width=20, anchor='w').pack(
+                        side="left", padx=5)
+                    tk.Label(marco_mes, text="Q 75.00", font=("Arial", 9), bg='white').pack(side="right", padx=10)
+
+                    mes_mostrar += 1
+            except:
+                nombre_mes = f"{nombres_meses[mes_actual - 1]} {año_actual}"
+
+                marco_mes = tk.Frame(marco_meses, bg='white')
+                marco_mes.pack(fill="x", pady=1)
+
+                variable = tk.BooleanVar()
+                casillas.append(variable)
+
+                casilla = tk.Checkbutton(marco_mes, variable=variable, command=calcular_total, bg='white',
+                                         font=("Arial", 9))
+                casilla.pack(side="left", padx=5)
+
+                tk.Label(marco_mes, text=nombre_mes, font=("Arial", 9), bg='white', width=20, anchor='w').pack(
+                    side="left", padx=5)
+                tk.Label(marco_mes, text="Q 75.00", font=("Arial", 9), bg='white').pack(side="right", padx=10)
+
+    def calcular_total():
+        total = 0
+        monto_mes = 75.00
+
+        for variable in casillas:
+            if variable.get():
+                total += monto_mes
+
+        etiqueta_total.config(text=f"Q {total:.2f}")
+        etiqueta_abonar.config(text=f"Q {total:.2f}")
+
+    def pagar():
+        nonlocal cliente_actual
+
+        if not cliente_actual:
+            messagebox.showwarning("Pago", "Seleccione un cliente primero")
+            return
+
+        meses_seleccionados = []
+        total = 0
+
+        for indice, variable in enumerate(casillas):
+            if variable.get():
+                total += 75.00
+                meses_seleccionados.append(indice)
+
+        if not meses_seleccionados:
+            messagebox.showwarning("Pago", "Seleccione al menos un mes")
+            return
+
+        confirmar = messagebox.askyesno("Confirmar Pago",
+                                        f"¿Confirmar pago de {len(meses_seleccionados)} mes(es) por Q {total:.2f}?")
+
+        if confirmar:
+            try:
+                conexion = sqlite3.connect("empresa.db")
+                cursor = conexion.cursor()
+
+                from datetime import datetime
+                fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                cursor.execute("UPDATE clientes SET fecha_ultimo_cobro=?, por_cobrar=0 WHERE id_cliente=?",
+                               (fecha_actual, cliente_actual))
+
+                conexion.commit()
+                conexion.close()
+
+                messagebox.showinfo("Pago Exitoso",
+                                    f"Pago registrado exitosamente:\nCliente ID: {cliente_actual}\nMeses pagados: {len(meses_seleccionados)}\nTotal: Q {total:.2f}\nFecha: {fecha_actual}")
+                ventana.destroy()
+
+            except sqlite3.Error as e:
+                messagebox.showerror("Error", f"No se pudo registrar el pago: {e}")
+
+    boton_siguiente = tk.Button(marco_botones, text="PAGAR", font=("Arial", 11), command=pagar, bg="#4CAF50",
+                                fg="white", width=12)
+    boton_siguiente.pack(side="left", padx=10)
+
+    boton_cancelar = tk.Button(marco_botones, text="CANCELAR", font=("Arial", 11), command=ventana.destroy,
+                               bg="#f44336", fg="white", width=12)
+    boton_cancelar.pack(side="left", padx=10)
+
+    lista_clientes.bind('<<ListboxSelect>>', seleccionar_cliente)
+    entrada_busqueda.bind("<Return>", lambda e: buscar_cliente())
+    entrada_busqueda.focus()
+
+def ventana_resumen_cobros(padre):
+    ventana = tk.Toplevel(padre)
+    ventana.title("Resumen de Cobros Diarios")
+    ventana.geometry("800x600")
+    ventana.configure(bg='white')
+
+    tk.Label(ventana, text="RESUMEN DE COBROS DIARIOS", font=("Arial", 16, "bold"), bg='white').pack(pady=15)
+
+    marco_principal = tk.Frame(ventana, bg='white')
+    marco_principal.pack(fill="both", expand=True, padx=20, pady=10)
+
+    marco_fechas = tk.Frame(marco_principal, bg='white', relief='solid', bd=1)
+    marco_fechas.pack(side="left", fill="y", padx=(0, 10))
+
+    tk.Label(marco_fechas, text="FECHAS CON COBROS", font=("Arial", 12, "bold"), bg='white').pack(pady=10)
+
+    lista_fechas = tk.Listbox(marco_fechas, font=("Arial", 11), width=15, height=20)
+    lista_fechas.pack(padx=10, pady=10, fill="both", expand=True)
+
+    marco_detalles = tk.Frame(marco_principal, bg='white', relief='solid', bd=1)
+    marco_detalles.pack(side="right", fill="both", expand=True)
+
+    tk.Label(marco_detalles, text="DETALLE DE COBROS", font=("Arial", 12, "bold"), bg='white').pack(pady=10)
+
+    marco_scroll = tk.Frame(marco_detalles, bg='white')
+    marco_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+
+    canvas = tk.Canvas(marco_scroll, bg='white')
+    scrollbar = tk.Scrollbar(marco_scroll, orient="vertical", command=canvas.yview)
+    marco_detalles_interior = tk.Frame(canvas, bg='white')
+
+    marco_detalles_interior.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    canvas.create_window((0, 0), window=marco_detalles_interior, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    marco_totales = tk.Frame(marco_detalles, bg='white')
+    marco_totales.pack(fill="x", padx=10, pady=5)
+
+    etiqueta_total = tk.Label(marco_totales, text="TOTAL DEL DÍA: Q 0.00",
+                              font=("Arial", 12, "bold"), bg='white', fg="#2E7D32")
+    etiqueta_total.pack()
+
+    def cargar_fechas_con_cobros():
+        try:
+            conexion = sqlite3.connect("empresa.db")
+            cursor = conexion.cursor()
+
+            cursor.execute("""
+                SELECT DISTINCT date(fecha_ultimo_cobro) as fecha_cobro
+                FROM clientes 
+                WHERE fecha_ultimo_cobro IS NOT NULL
+                ORDER BY fecha_cobro DESC
+            """)
+            fechas = cursor.fetchall()
+            conexion.close()
+
+            lista_fechas.delete(0, tk.END)
+
+            for fecha in fechas:
+                if fecha[0]:
+                    lista_fechas.insert(tk.END, fecha[0])
+
+        except sqlite3.Error as e:
+            messagebox.showerror("Error", f"No se pudieron cargar las fechas: {e}")
+
+    def cargar_detalles_cobros(event):
+        seleccion = lista_fechas.curselection()
+        if not seleccion:
+            return
+        fecha_seleccionada = lista_fechas.get(seleccion[0])
+        try:
+            conexion = sqlite3.connect("empresa.db")
+            cursor = conexion.cursor()
+
+            cursor.execute("""
+                SELECT id_cliente, nombre
+                FROM clientes 
+                WHERE date(fecha_ultimo_cobro) = ?
+                ORDER BY fecha_ultimo_cobro
+            """, (fecha_seleccionada,))
+
+            cobros = cursor.fetchall()
+            conexion.close()
+
+            for widget in marco_detalles_interior.winfo_children():
+                widget.destroy()
+
+            total_dia = 0
+            monto_por_mes = 75.00
+
+            tk.Label(marco_detalles_interior, text=fecha_seleccionada,
+                     font=("Arial", 14, "bold"), bg='white').pack(anchor="w", pady=(0, 5))
+
+            for id_cliente, nombre in cobros:
+                marco_cliente = tk.Frame(marco_detalles_interior, bg='white')
+                marco_cliente.pack(fill="x", pady=2)
+
+                tk.Label(marco_cliente, text=f"{id_cliente} - {nombre}",
+                         font=("Arial", 9), bg='white', anchor='w').pack(side="left")
+
+                tk.Label(marco_cliente, text="Q 75.00",
+                         font=("Arial", 9), bg='white').pack(side="right")
+
+                total_dia += monto_por_mes
+
+            tk.Label(marco_detalles_interior, text=f"Cantidad: {len(cobros)}",
+                     font=("Arial", 11, "bold"), bg='white').pack(anchor="w", pady=(10, 0))
+
+            etiqueta_total.config(text=f"TOTAL DEL {fecha_seleccionada}: Q {total_dia:.2f}")
+
+        except sqlite3.Error as e:
+            messagebox.showerror("Error", f"No se pudieron cargar los detalles: {e}")
+
+    lista_fechas.bind('<<ListboxSelect>>', cargar_detalles_cobros)
+
+    def actualizar_lista():
+        cargar_fechas_con_cobros()
+        for widget in marco_detalles_interior.winfo_children():
+            widget.destroy()
+        etiqueta_total.config(text="TOTAL DEL DÍA: Q 0.00")
+
+    marco_botones = tk.Frame(ventana, bg='white')
+    marco_botones.pack(pady=10)
+
+    boton_actualizar = tk.Button(marco_botones, text="Actualizar Lista", font=("Arial", 11),
+                                 command=actualizar_lista, bg="#2196F3", fg="white")
+    boton_actualizar.pack()
+
+    ventana.after(100, cargar_fechas_con_cobros)
 
 def abrir_panel_principal(nombre, rol):
     ventana = tk.Tk()
@@ -1393,26 +2209,26 @@ def abrir_panel_principal(nombre, rol):
             ("Ver Asistencias", lambda: ventana_ver_asistencias(ventana)),
             ("Gestión de Clientes", lambda: ventana_gestion_clientes(ventana)),
             ("Inventario", lambda: ventana_inventario(ventana)),
-            ("Listado Clientes por Visitar", lambda: ventana_listar_ordenes(ventana)),  # placeholder (usa órdenes para mostrar)
+            ("Listado Clientes por Visitar", lambda: ventana_clientes_por_cobrar(ventana)),
             ("Órdenes de Trabajo", lambda: ventana_ordenes_trabajo(ventana)),
-            ("Material Instalado", None),
-            ("Control de Cobros", None),
-            ("Facturar", None),
+            ("Material Instalado", lambda: ventana_ver_material_instalado(ventana) ),
+            ("Resumen de Cobros", lambda: ventana_resumen_cobros(ventana)),
+            ("Facturar", lambda : ventana_cobros(ventana)),
             ("Crear Usuarios", lambda: ventana_crear_usuario(ventana)),
         ]
     elif rol == "cobrador":
         botones = [
             ("Asistencia", lambda: ventana_marcar_asistencia(ventana)),
             ("Gestión de Clientes", lambda: ventana_gestion_clientes(ventana)),
-            ("Listado Clientes Visitar", lambda: ventana_listar_ordenes(ventana)),
-            ("Control de Cobros", None),
-            ("Facturar", None),
+            ("Listado Clientes Visitar", lambda: ventana_clientes_por_cobrar(ventana)),
+            ("Resumen de Cobros", lambda: ventana_resumen_cobros(ventana)),
+            ("Facturar", lambda: ventana_cobros(ventana)),
         ]
     else:
         botones = [
             ("Asistencia", lambda: ventana_marcar_asistencia(ventana)),
             ("Gestión de Clientes", lambda: ventana_gestion_clientes(ventana)),
-            ("Listado Clientes por Visitar", lambda: ventana_listar_ordenes(ventana)),
+            ("Reportar Material", lambda: ventana_reportar_material(ventana)),
             ("Control de Cobros", None),
             ("Facturar", None),
         ]
@@ -1432,7 +2248,6 @@ def abrir_panel_principal(nombre, rol):
 
     ventana.fondo_tk = fondo_tk
     ventana.mainloop()
-
 
 def ventana_login_gui():
     global ventana_login, entrada_usuario, entrada_contraseña, imagen_logo
